@@ -100,6 +100,10 @@ class NugenClient:
         reraise=True,
     )
     def _request(self, method: str, path: str, **kwargs: Any) -> Any:
+        return self._request_once(method, path, **kwargs)
+
+    def _request_once(self, method: str, path: str, **kwargs: Any) -> Any:
+        """Send one request; callers opt into retries through ``_request``."""
         try:
             response = self._client.request(method, path, **kwargs)
         except (httpx.NetworkError, httpx.TimeoutException):
@@ -270,6 +274,7 @@ class NugenClient:
         payload = self._request(
             "POST",
             f"{self.API_PREFIX}/inference/completions",
+            timeout=httpx.Timeout(self.config.inference_timeout_seconds),
             json={
                 "model": model,
                 "prompt": prompt,

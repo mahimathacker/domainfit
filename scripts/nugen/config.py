@@ -16,6 +16,7 @@ class NugenConfig:
     aligned_model: str | None = None
     mock_mode: bool = True
     timeout_seconds: float = 30.0
+    inference_timeout_seconds: float = 180.0
 
     @classmethod
     def from_env(cls, *, require_api_key: bool = True) -> NugenConfig:
@@ -30,5 +31,7 @@ class NugenConfig:
             aligned_model=os.getenv("NUGEN_ALIGNED_MODEL") or None,
             mock_mode=os.getenv("NUGEN_MOCK_MODE", "true").lower() in {"1", "true", "yes"},
             timeout_seconds=float(os.getenv("NUGEN_TIMEOUT_SECONDS", "30")),
+            inference_timeout_seconds=float(
+                os.getenv("NUGEN_INFERENCE_TIMEOUT_SECONDS", "180")
+            ),
         )
-
