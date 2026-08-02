@@ -296,11 +296,14 @@ class NugenClient:
         initial_delay: float = 2.0,
         max_delay: float = 30.0,
         sleep: Callable[[float], None] = time.sleep,
+        on_status: Callable[[int, str, T], None] | None = None,
     ) -> T:
         failure = failure or {"FAILED", "STOPPED"}
         for attempt in range(max_attempts):
             value = fetch()
             status = status_of(value).upper()
+            if on_status:
+                on_status(attempt + 1, status, value)
             if status in success:
                 return value
             if status in failure:

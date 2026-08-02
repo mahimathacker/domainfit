@@ -33,6 +33,20 @@ def test_polling_stops_when_ready() -> None:
     assert delays == [2.0]
 
 
+def test_polling_reports_each_observed_status() -> None:
+    responses = iter([{"status": "PROCESSING"}, {"status": "READY"}])
+    observed: list[tuple[int, str]] = []
+    with nugen() as instance:
+        instance.poll(
+            lambda: next(responses),
+            status_of=lambda item: item["status"],
+            success={"READY"},
+            sleep=lambda _: None,
+            on_status=lambda attempt, status, _: observed.append((attempt, status)),
+        )
+    assert observed == [(1, "PROCESSING"), (2, "READY")]
+
+
 def test_polling_raises_on_failed_alignment() -> None:
     with nugen() as instance, pytest.raises(NugenJobFailedError, match="FAILED"):
         instance.poll(

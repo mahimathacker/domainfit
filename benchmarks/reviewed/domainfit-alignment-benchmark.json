@@ -1,0 +1,103 @@
+[
+  {
+    "question_num": 1,
+    "question": "A team wants an assistant for broad, low-risk rewriting. It has no specialist vocabulary, changing facts, private data, citations, or actions. Which architecture should it start with, and why?",
+    "answer": "Start with a general model and clear prompting. The task is broad and already supported by general capabilities, and no stable specialist behavior or runtime integration justifies alignment, retrieval, or tools."
+  },
+  {
+    "question_num": 2,
+    "question": "A quality team repeatedly classifies reports into a stable approved taxonomy and has thousands of reviewed examples. Facts do not change at runtime. What architecture and application control are appropriate?",
+    "answer": "Use domain alignment for the stable taxonomy and classification boundaries. Validate every output against the allowed label set and route low-confidence or invalid classifications for review."
+  },
+  {
+    "question_num": 3,
+    "question": "An assistant must answer from procedures revised every week and cite the effective section. No specialist response behavior has been demonstrated. What belongs in the architecture?",
+    "answer": "Use retrieval over the current approved procedures, including effective dates and citation metadata. Alignment is unnecessary unless a stable specialist behavior is separately defined."
+  },
+  {
+    "question_num": 4,
+    "question": "A signed-in customer asks for private account status, and tenant permissions must be enforced. Which responsibility belongs to tools and which must remain deterministic?",
+    "answer": "Use an authenticated account-status tool for live private data. Identity verification, tenant authorization, and access denial must remain deterministic application controls rather than model decisions."
+  },
+  {
+    "question_num": 5,
+    "question": "A support assistant needs stable diagnostic behavior, current cited documentation, and a permission-checked action that requires user approval. Recommend an architecture and separate the responsibilities.",
+    "answer": "Use a hybrid architecture. Align the stable diagnostic and escalation behavior, retrieve current approved documentation with citations, use an authenticated tool for the action, and enforce permission and explicit approval in deterministic application logic."
+  },
+  {
+    "question_num": 6,
+    "question": "The only available source is a short marketing page, and the team cannot define how the desired model behavior differs from a general model. Should alignment start now?",
+    "answer": "No. Begin with a general-model prototype and collect representative reviewed examples, behavioral requirements, edge cases, and measurable success criteria before considering alignment."
+  },
+  {
+    "question_num": 7,
+    "question": "Two source documents conflict, have no owners, and omit effective dates. How should document readiness and implementation proceed?",
+    "answer": "Readiness is low. Do not align or treat both sources as equally authoritative. Assign owners, resolve the conflict, record precedence and effective dates, and require human review until governance is complete."
+  },
+  {
+    "question_num": 8,
+    "question": "A manager proposes aligning daily exchange rates into a model to avoid a runtime dependency. What should DomainFit recommend?",
+    "answer": "Reject alignment for volatile rates. Use an authoritative live data tool, validate the rate timestamp and currency precision deterministically, and reserve alignment for stable behavior if such a need exists."
+  },
+  {
+    "question_num": 9,
+    "question": "A workflow asks the model to decide whether a user may access a confidential record based on policy examples. Identify the architecture boundary.",
+    "answer": "Authorization must be handled by deterministic policy enforcement and identity tools. The model may explain an allow or deny result but must never grant access or infer permissions."
+  },
+  {
+    "question_num": 10,
+    "question": "A generated benchmark repeats definitions, contains leading questions, and has empty expected answers. What must happen before it can be used for alignment?",
+    "answer": "It requires human review. Remove duplicates and leading cues, complete expected answers, add boundary and failure cases, and ensure it measures application of the framework rather than document recall."
+  },
+  {
+    "question_num": 11,
+    "question": "Why must held-out evaluation scenarios remain separate from alignment documents and reviewed alignment benchmarks?",
+    "answer": "Using held-out scenarios during alignment leaks evaluation content and invalidates the comparison. Dataset provenance and strict separation are required to measure generalization to unseen cases."
+  },
+  {
+    "question_num": 12,
+    "question": "An aligned answer is much longer than a base-model answer but adds unsupported assumptions. How should the comparison be scored?",
+    "answer": "Do not reward length. Score architecture correctness, responsibility separation, explicit assumptions, unsupported claims, safety boundaries, and benchmark usefulness. Penalize unsupported additions."
+  },
+  {
+    "question_num": 13,
+    "question": "When should an architecture recommendation receive lower confidence, and what must the response do about that uncertainty?",
+    "answer": "Confidence should be lower when requirements conflict or when document authority, freshness, risk ownership, permissions, or success criteria are missing. The response must state assumptions and identify evidence that could change the recommendation."
+  },
+  {
+    "question_num": 14,
+    "question": "A corpus has stable terminology and normal examples but no refusals, exceptions, ambiguous requests, or escalation cases. Assess its alignment readiness.",
+    "answer": "It is only partially ready. Preserve the useful stable material, but add negative examples, ambiguity handling, exception paths, and escalation behavior before relying on alignment. Route unsupported cases for review."
+  },
+  {
+    "question_num": 15,
+    "question": "A high-volume classifier has strong examples and a stable taxonomy, but outputs must meet strict latency and label constraints. What should be aligned and what should be measured or enforced outside the model?",
+    "answer": "Align the stable classification and abstention behavior. Benchmark the chosen model and deployment against latency targets, validate labels deterministically, and route invalid outputs through a safe fallback."
+  },
+  {
+    "question_num": 16,
+    "question": "A regulated workflow uses stable specialist language, current approved rules, private case data, and a final decision owned by a qualified reviewer. Separate all system responsibilities.",
+    "answer": "Align stable terminology, explanation structure, and escalation behavior; retrieve current approved rules; access private case data through authorized tools; enforce hard eligibility and permission rules deterministically; and keep the final decision with the qualified human reviewer."
+  },
+  {
+    "question_num": 17,
+    "question": "An assistant calculates an authoritative result from user inputs using a fixed approved formula. Why is prompting or alignment alone insufficient?",
+    "answer": "A probabilistic model should not perform the authoritative calculation. Use a validated calculator tool with numeric validation, formula versioning, precision, and rounding rules; the model may explain the result."
+  },
+  {
+    "question_num": 18,
+    "question": "Current facts are already supplied reliably at runtime, but response format and escalation behavior vary across requests. Which scope is a candidate for alignment?",
+    "answer": "Align the stable response structure, terminology, and escalation behavior. Do not duplicate the runtime fact source in alignment material, and continue validating required response fields in application code."
+  },
+  {
+    "question_num": 19,
+    "question": "A team proposes a hybrid architecture even though the task is generic and has no changing evidence, private data, actions, or material risk. How should DomainFit respond?",
+    "answer": "Recommend the simpler general-model architecture. A hybrid adds unjustified cost and operational complexity when prompting already meets all material requirements."
+  },
+  {
+    "question_num": 20,
+    "question": "What evidence should a developer collect before claiming that an aligned model improves on its base model?",
+    "answer": "Use identical unseen scenarios, a reviewed rubric, preserved raw outputs, and metrics for architecture correctness, responsibility separation, assumptions, unsupported claims, safety, latency, and usage. Do not infer improvement from verbosity or training-set performance."
+  }
+]
+

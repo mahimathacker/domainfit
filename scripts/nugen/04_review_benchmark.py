@@ -6,16 +6,29 @@ import argparse
 import json
 from pathlib import Path
 
-from scripts.nugen.benchmark_review import review_benchmark
+from scripts.nugen.benchmark_review import review_benchmark, validate_nugen_benchmark
 from scripts.nugen.common import ROOT, state_store, write_json
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("path", nargs="?", type=Path)
+    parser.add_argument(
+        "--approve",
+        type=Path,
+        help="Validate and select an existing reviewed benchmark without modifying it",
+    )
     args = parser.parse_args()
     store = state_store()
     state = store.load()
+    if args.approve:
+        reviewed = args.approve.resolve()
+        validate_nugen_benchmark(json.loads(reviewed.read_text(encoding="utf-8")))
+        state.reviewed_benchmark_path = str(reviewed.relative_to(ROOT))
+        state.complete("review")
+        store.save(state)
+        print(f"Approved reviewed benchmark: {reviewed}")
+        return
     generated = args.path or ROOT / str(state.metadata.get("generated_benchmark_path", ""))
     if not generated.is_file():
         raise SystemExit("Generated benchmark not found; pass its path explicitly")
@@ -35,4 +48,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

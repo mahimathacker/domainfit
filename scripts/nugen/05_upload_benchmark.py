@@ -1,5 +1,8 @@
 """Upload an explicitly reviewed benchmark file."""
 
+import json
+
+from scripts.nugen.benchmark_review import validate_nugen_benchmark
 from scripts.nugen.common import ROOT, client_from_env, state_store
 
 
@@ -11,6 +14,7 @@ def main() -> None:
     if not state.document_ids:
         raise SystemExit("An uploaded document ID is required")
     path = ROOT / state.reviewed_benchmark_path
+    validate_nugen_benchmark(json.loads(path.read_text(encoding="utf-8")))
     with client_from_env() as client:
         job = client.upload_benchmark(
             path,

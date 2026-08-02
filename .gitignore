@@ -16,5 +16,3 @@ evaluations/*
 !evaluations/.gitkeep
 benchmarks/generated/*
 !benchmarks/generated/.gitkeep
-benchmarks/reviewed/*
-!benchmarks/reviewed/.gitkeep

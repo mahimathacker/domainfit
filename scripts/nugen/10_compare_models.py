@@ -51,6 +51,9 @@ def main() -> None:
                 max_attempts=30,
                 initial_delay=5,
                 max_delay=60,
+                on_status=lambda attempt, status, _: print(
+                    f"Evaluation check {attempt}/30: {status}", flush=True
+                ),
             )
             state.metadata["official_evaluation_status"] = result
             state.metadata["official_evaluation_results"] = client.get_evaluation_results(job.id)

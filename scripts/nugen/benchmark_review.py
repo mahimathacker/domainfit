@@ -7,6 +7,14 @@ from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Any
 
+FIELD_RECALL_PATTERNS = (
+    "what is the confidence level",
+    "what is the recommendation for",
+    "what is the alignment scope",
+    "what is the runtime retrieval scope",
+    "what is the tool scope",
+)
+
 
 @dataclass(slots=True)
 class ReviewFinding:
@@ -48,6 +56,10 @@ def review_benchmark(
             findings[index].codes.append("empty-answer")
         if question and len(question.split()) < 5:
             findings[index].codes.append("overly-simple-question")
+        if any(pattern in question.lower() for pattern in FIELD_RECALL_PATTERNS):
+            findings[index].codes.append("direct-field-recall")
+        if answer in {"[]", "{}", "null", "None"}:
+            findings[index].codes.append("empty-structured-answer")
         if any(normalized and normalized in source for source in sources):
             findings[index].codes.append("question-copied-from-document")
 
@@ -64,3 +76,30 @@ def review_benchmark(
 
 def extract_items(payload: Any) -> list[dict[str, Any]]:
     return _items(payload)
+
+
+def validate_nugen_benchmark(payload: Any) -> list[dict[str, Any]]:
+    items = extract_items(payload)
+    if not items:
+        raise ValueError("Benchmark must contain at least one question")
+    numbers: list[int] = []
+    for index, item in enumerate(items, start=1):
+        question_num = item.get("question_num")
+        question = item.get("question")
+        answer = item.get("answer")
+        if not isinstance(question_num, int):
+            raise ValueError(f"Benchmark item {index} requires an integer question_num")
+        if not isinstance(question, str) or not question.strip():
+            raise ValueError(f"Benchmark item {index} requires a non-empty question")
+        if not isinstance(answer, str) or not answer.strip():
+            raise ValueError(f"Benchmark item {index} requires a non-empty answer")
+        numbers.append(question_num)
+    if numbers != list(range(1, len(items) + 1)):
+        raise ValueError("Benchmark question_num values must be sequential starting at 1")
+    findings = review_benchmark(items)
+    if findings:
+        summary = "; ".join(
+            f"item {finding.index + 1}: {', '.join(finding.codes)}" for finding in findings
+        )
+        raise ValueError(f"Benchmark quality checks failed: {summary}")
+    return items

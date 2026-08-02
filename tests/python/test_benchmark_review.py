@@ -1,4 +1,10 @@
-from scripts.nugen.benchmark_review import extract_items, review_benchmark
+import pytest
+
+from scripts.nugen.benchmark_review import (
+    extract_items,
+    review_benchmark,
+    validate_nugen_benchmark,
+)
 
 
 def test_extracts_nested_question_list() -> None:
@@ -35,3 +41,33 @@ def test_valid_benchmark_has_no_findings() -> None:
         }
     ]
     assert review_benchmark(payload) == []
+
+
+def test_flags_direct_field_recall_and_empty_structured_answer() -> None:
+    findings = review_benchmark(
+        [{"question": "What is the confidence level for this recommendation?", "answer": "[]"}]
+    )
+    assert findings[0].codes == ["direct-field-recall", "empty-structured-answer"]
+
+
+def test_validates_nugen_upload_shape() -> None:
+    payload = [
+        {
+            "question_num": 1,
+            "question": "Which architecture should handle frequently changing approved evidence?",
+            "answer": "Use retrieval so current approved evidence is supplied at runtime.",
+        }
+    ]
+    assert validate_nugen_benchmark(payload) == payload
+
+
+def test_rejects_non_sequential_question_numbers() -> None:
+    payload = [
+        {
+            "question_num": 2,
+            "question": "Which architecture should handle frequently changing approved evidence?",
+            "answer": "Use retrieval so current approved evidence is supplied at runtime.",
+        }
+    ]
+    with pytest.raises(ValueError, match="sequential"):
+        validate_nugen_benchmark(payload)

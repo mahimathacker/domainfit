@@ -25,6 +25,9 @@ def main() -> None:
             max_attempts=30,
             initial_delay=10,
             max_delay=60,
+            on_status=lambda attempt, status, _: print(
+                f"Deployment check {attempt}/30: {status}", flush=True
+            ),
         )
     state.deployed_model_id = model_id
     state.complete("deployment")
@@ -34,4 +37,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

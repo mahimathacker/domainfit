@@ -17,6 +17,11 @@ def main() -> None:
             max_attempts=60,
             initial_delay=10,
             max_delay=120,
+            on_status=lambda attempt, status, item: print(
+                f"Alignment check {attempt}/60: {status}"
+                + (f" ({item.progress:.0f}%)" if item.progress is not None else ""),
+                flush=True,
+            ),
         )
     if not result.model_id:
         raise ValueError("Alignment is READY but did not return a model ID")
@@ -28,4 +33,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
