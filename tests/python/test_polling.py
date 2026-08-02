@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from importlib import import_module
+
+import httpx
 import pytest
 
 from scripts.nugen.config import NugenConfig
@@ -8,6 +11,8 @@ from scripts.nugen.nugen_client import (
     NugenJobFailedError,
     NugenPollingTimeoutError,
 )
+
+poll_document_tasks = import_module("scripts.nugen.02_upload_documents").poll_document_tasks
 
 
 def nugen() -> NugenClient:
@@ -56,3 +61,24 @@ def test_polling_is_bounded() -> None:
         )
     assert calls == 3
 
+
+def test_document_tasks_are_polled_together(capsys: pytest.CaptureFixture[str]) -> None:
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        task_id = request.url.path.rsplit("/", 1)[-1]
+        calls.append(task_id)
+        return httpx.Response(
+            200, json={"status": "READY", "document_id": f"doc-{task_id}"}
+        )
+
+    instance = NugenClient(
+        NugenConfig(api_key="test", base_url="https://api.nugen.test"),
+        transport=httpx.MockTransport(handler),
+    )
+    with instance:
+        completed = poll_document_tasks(instance, ["task-1", "task-2"], sleep=lambda _: None)
+
+    assert calls == ["task-1", "task-2"]
+    assert [item["document_id"] for item in completed] == ["doc-task-1", "doc-task-2"]
+    assert "task-1=READY" in capsys.readouterr().out
