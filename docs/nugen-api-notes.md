@@ -16,7 +16,8 @@ All endpoints use bearer authentication and the `https://api.nugen.in/api/v3` pr
 | Create alignment | `POST /alignment-project/create` | `name`, `base_model`, `document_ids`, optional benchmark and description | `{ id, status }` | Documented |
 | Alignment status | `GET /alignment-project/status/{id}` | Alignment ID | Status envelope or project data | Documented with inconsistent examples; normalized defensively |
 | Deploy model | `POST /models/deploy-model/{model_id}` | None | Bare model ID or `{ model_id }` | Documented with inconsistent examples; both accepted |
-| Deployment status | `GET /models/deployment-status/{model_id}` | Model ID | Deployment state | Endpoint documented; response needs live verification |
+| Deployment status | `GET /models/deploy-model/{model_id}/status` | Model ID | `PENDING`, `COMPLETED`, or `FAILED` | Poll until terminal status |
+| Aligned model inventory | `GET /models/aligned` | None | Models, states, and inference endpoints | Read after deployment completes |
 | Aligned models | `GET /models/aligned` | None | User aligned-model collection | Documented |
 | Completion | `POST /inference/completions` | `model`, `prompt`, generation options, `stream: false` | Completion choices and optional usage | Documented |
 | Evaluation | `POST /evaluations` | `model_id`, `benchmark_id`, optional `model_id_2` | Evaluation ID and status | Documented |

@@ -43,6 +43,10 @@ class NugenRateLimitError(NugenError):
     pass
 
 
+class NugenNotFoundError(NugenError):
+    pass
+
+
 class NugenJobFailedError(NugenError):
     pass
 
@@ -108,6 +112,8 @@ class NugenClient:
             raise NugenValidationError(detail or "Nugen rejected the request")
         if response.status_code == 429:
             raise NugenRateLimitError(detail or "Nugen rate limit reached")
+        if response.status_code == 404:
+            raise NugenNotFoundError(detail or "Nugen resource not found")
         if response.status_code in {400, 402} and "credit" in detail.lower():
             raise NugenCreditsError(detail)
         if response.status_code >= 500:
@@ -252,7 +258,7 @@ class NugenClient:
 
     def get_deployment_status(self, model_id: str) -> Any:
         return self._request(
-            "GET", f"{self.API_PREFIX}/models/deployment-status/{model_id}"
+            "GET", f"{self.API_PREFIX}/models/deploy-model/{model_id}/status"
         )
 
     def list_aligned_models(self) -> Any:

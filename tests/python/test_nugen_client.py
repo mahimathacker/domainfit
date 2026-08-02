@@ -153,6 +153,18 @@ def test_deployment_response_variants(payload, expected: str) -> None:
         assert nugen.deploy_model("aligned-1") == expected
 
 
+def test_deployment_status_uses_documented_task_endpoint() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v3/models/deploy-model/aligned-1/status"
+        return httpx.Response(200, json={"model_id": "aligned-1", "status": "PENDING"})
+
+    with NugenClient(
+        NugenConfig(api_key="test", base_url="https://api.nugen.test"),
+        transport=httpx.MockTransport(handler),
+    ) as nugen:
+        assert nugen.get_deployment_status("aligned-1")["status"] == "PENDING"
+
+
 def test_alignment_status_normalizes_envelope() -> None:
     def handler(_: httpx.Request) -> httpx.Response:
         return httpx.Response(
