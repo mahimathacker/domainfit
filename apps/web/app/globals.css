@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: #f4f3ed; color: #17211b; font-family: Arial, Helvetica, sans-serif; }
+::selection { background: #d7f277; color: #17211b; }
+:focus-visible { outline: 3px solid #315b45; outline-offset: 3px; }
+
+@layer components {
+  .shell { @apply mx-auto w-full max-w-7xl px-5 sm:px-8 lg:px-12; }
+  .eyebrow { @apply text-xs font-bold uppercase tracking-[0.18em] text-moss; }
+  .card { @apply rounded-2xl border border-line bg-paper shadow-card; }
+  .button-primary { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-ink px-6 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-moss disabled:cursor-not-allowed disabled:opacity-50; }
+  .button-secondary { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-ink/20 bg-transparent px-6 py-3 text-sm font-semibold transition hover:border-ink hover:bg-white; }
+  .field { @apply mt-2 w-full rounded-xl border border-line bg-white px-4 py-3 text-base text-ink placeholder:text-ink/35 focus:border-moss focus:outline-none focus:ring-2 focus:ring-moss/15; }
+  .label { @apply block text-sm font-semibold text-ink; }
+}
+
