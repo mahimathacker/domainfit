@@ -47,6 +47,25 @@ def test_polling_reports_each_observed_status() -> None:
     assert observed == [(1, "PROCESSING"), (2, "READY")]
 
 
+def test_request_retries_temporary_server_errors() -> None:
+    responses = iter(
+        [
+            httpx.Response(500, json={"detail": "Internal Server Error"}),
+            httpx.Response(200, json={"models": []}),
+        ]
+    )
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        return next(responses)
+
+    instance = NugenClient(
+        NugenConfig(api_key="test", base_url="https://api.nugen.test"),
+        transport=httpx.MockTransport(handler),
+    )
+    with instance:
+        assert instance.list_base_models() == []
+
+
 def test_polling_raises_on_failed_alignment() -> None:
     with nugen() as instance, pytest.raises(NugenJobFailedError, match="FAILED"):
         instance.poll(

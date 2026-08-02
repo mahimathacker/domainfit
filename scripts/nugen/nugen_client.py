@@ -55,6 +55,10 @@ class NugenResponseError(NugenError):
     pass
 
 
+class NugenServerError(NugenError):
+    """A temporary failure returned by Nugen's server."""
+
+
 class NugenClient:
     """All network access to Nugen is routed through this client."""
 
@@ -84,7 +88,9 @@ class NugenClient:
         self._client.close()
 
     @retry(
-        retry=retry_if_exception_type((httpx.NetworkError, httpx.TimeoutException)),
+        retry=retry_if_exception_type(
+            (httpx.NetworkError, httpx.TimeoutException, NugenServerError)
+        ),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=0.5, min=0.5, max=4),
         reraise=True,
@@ -104,6 +110,10 @@ class NugenClient:
             raise NugenRateLimitError(detail or "Nugen rate limit reached")
         if response.status_code in {400, 402} and "credit" in detail.lower():
             raise NugenCreditsError(detail)
+        if response.status_code >= 500:
+            raise NugenServerError(
+                f"Nugen returned HTTP {response.status_code}: {detail or 'server error'}"
+            )
         if response.is_error:
             raise NugenError(f"Nugen returned HTTP {response.status_code}: {detail}")
         if not response.content:
