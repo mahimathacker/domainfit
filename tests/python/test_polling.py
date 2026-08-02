@@ -14,6 +14,9 @@ from scripts.nugen.nugen_client import (
 
 poll_document_tasks = import_module("scripts.nugen.02_upload_documents").poll_document_tasks
 find_aligned_model = import_module("scripts.nugen.08_deploy_model").find_aligned_model
+deployment_failure_reason = import_module(
+    "scripts.nugen.08_deploy_model"
+).deployment_failure_reason
 
 
 def nugen() -> NugenClient:
@@ -132,3 +135,9 @@ def test_aligned_model_is_found_by_model_or_alignment_id() -> None:
     assert find_aligned_model(payload, "deployed-1") == payload["domain_aligned_models"][0]
     assert find_aligned_model(payload, "alignment-1") == payload["domain_aligned_models"][0]
     assert find_aligned_model(payload, "missing") is None
+
+
+def test_deployment_failure_reason_reads_nested_task_error() -> None:
+    payload = {"status": "FAILED", "result": {"error": "Provider rejected deployment"}}
+
+    assert deployment_failure_reason(payload) == "Provider rejected deployment"

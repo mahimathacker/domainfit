@@ -30,6 +30,24 @@ def find_aligned_model(payload: Any, model_id: str) -> dict[str, Any] | None:
     )
 
 
+def deployment_failure_reason(payload: dict[str, Any]) -> str:
+    task_result = payload.get("result")
+    nested_error = task_result.get("error") if isinstance(task_result, dict) else None
+    return next(
+        (
+            str(value)
+            for value in (
+                nested_error,
+                payload.get("failure_reason"),
+                payload.get("error"),
+                payload.get("message"),
+            )
+            if value
+        ),
+        "Nugen did not provide a failure reason",
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--confirm", action="store_true")
@@ -68,14 +86,7 @@ def main() -> None:
                 on_status=report_status,
             )
         except NugenJobFailedError:
-            reason = next(
-                (
-                    str(observed[key])
-                    for key in ("failure_reason", "error", "message")
-                    if observed.get(key)
-                ),
-                "Nugen did not provide a failure reason",
-            )
+            reason = deployment_failure_reason(observed)
             raise SystemExit(
                 f"Nugen could not deploy the model: {reason}. "
                 "Do not retry repeatedly; check the dashboard or contact Nugen support."
