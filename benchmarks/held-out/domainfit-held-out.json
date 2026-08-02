@@ -1,0 +1,153 @@
+[
+  {
+    "id": "scenario-001",
+    "use_case": "A customer-support assistant follows a stable escalation policy while answering from frequently updated product documentation.",
+    "expected_architecture": "hybrid",
+    "expected_alignment_scope": ["support tone", "triage and escalation behaviour"],
+    "expected_runtime_scope": ["current product documentation", "current support policy versions"],
+    "expected_tool_scope": [],
+    "human_review_required": false,
+    "expected_reasoning_points": ["stable behaviour suits alignment", "changing facts belong in retrieval"]
+  },
+  {
+    "id": "scenario-002",
+    "use_case": "A developer portal assistant must cite the latest SDK reference and consistently produce tested migration checklists.",
+    "expected_architecture": "hybrid",
+    "expected_alignment_scope": ["migration checklist format", "diagnostic questioning style"],
+    "expected_runtime_scope": ["versioned SDK and API documentation"],
+    "expected_tool_scope": [],
+    "human_review_required": false,
+    "expected_reasoning_points": ["API details change", "format and troubleshooting patterns should remain consistent"]
+  },
+  {
+    "id": "scenario-003",
+    "use_case": "An analyst assistant explains a firm's approved valuation methodology using stable internal examples without accessing live market data.",
+    "expected_architecture": "alignment",
+    "expected_alignment_scope": ["valuation terminology", "approved analytical sequence", "disclosure language"],
+    "expected_runtime_scope": [],
+    "expected_tool_scope": [],
+    "human_review_required": true,
+    "expected_reasoning_points": ["specialized stable behaviour is teachable", "financial conclusions require review"]
+  },
+  {
+    "id": "scenario-004",
+    "use_case": "A legal information assistant answers only from the latest approved policies and must quote citations without giving legal advice.",
+    "expected_architecture": "hybrid",
+    "expected_alignment_scope": ["legal-information boundary", "refusal and escalation behaviour"],
+    "expected_runtime_scope": ["current approved policies and citations"],
+    "expected_tool_scope": [],
+    "human_review_required": true,
+    "expected_reasoning_points": ["retrieval supplies authoritative evidence", "alignment can stabilize boundaries", "not a substitute for counsel"]
+  },
+  {
+    "id": "scenario-005",
+    "use_case": "A healthcare intake assistant follows clinic language, checks deterministic red-flag rules, and requests clinician approval before scheduling.",
+    "expected_architecture": "hybrid",
+    "expected_alignment_scope": ["intake questioning", "clinic terminology", "escalation wording"],
+    "expected_runtime_scope": ["current clinic guidance"],
+    "expected_tool_scope": ["validated red-flag rules", "scheduling API"],
+    "human_review_required": true,
+    "expected_reasoning_points": ["clinical rules must remain deterministic", "actions require controlled tools", "human oversight is mandatory"]
+  },
+  {
+    "id": "scenario-006",
+    "use_case": "Employees ask questions about frequently revised internal benefits and require links to the governing source.",
+    "expected_architecture": "rag",
+    "expected_alignment_scope": [],
+    "expected_runtime_scope": ["current benefits documents", "source links"],
+    "expected_tool_scope": [],
+    "human_review_required": false,
+    "expected_reasoning_points": ["facts change", "citations matter", "specialized model behaviour is not established"]
+  },
+  {
+    "id": "scenario-007",
+    "use_case": "A shopping assistant answers questions about prices that change several times per day.",
+    "expected_architecture": "rag",
+    "expected_alignment_scope": [],
+    "expected_runtime_scope": ["current prices", "current availability"],
+    "expected_tool_scope": [],
+    "human_review_required": false,
+    "expected_reasoning_points": ["prices must not be learned through alignment", "freshness is the primary requirement"]
+  },
+  {
+    "id": "scenario-008",
+    "use_case": "A banking assistant retrieves the signed-in user's balance and recent transactions while enforcing account permissions.",
+    "expected_architecture": "tools",
+    "expected_alignment_scope": [],
+    "expected_runtime_scope": [],
+    "expected_tool_scope": ["authenticated account lookup", "permission enforcement"],
+    "human_review_required": false,
+    "expected_reasoning_points": ["private live data requires tools", "authorization belongs outside the model"]
+  },
+  {
+    "id": "scenario-009",
+    "use_case": "An operations assistant drafts a refund and can issue it only after an employee approves the exact amount.",
+    "expected_architecture": "tools",
+    "expected_alignment_scope": [],
+    "expected_runtime_scope": [],
+    "expected_tool_scope": ["refund calculation", "approval check", "payment action"],
+    "human_review_required": true,
+    "expected_reasoning_points": ["external action requires a controlled tool", "approval cannot be delegated to model text"]
+  },
+  {
+    "id": "scenario-010",
+    "use_case": "A developer assistant diagnoses build failures using stable company debugging playbooks and live CI logs.",
+    "expected_architecture": "hybrid",
+    "expected_alignment_scope": ["company debugging sequence", "incident escalation format"],
+    "expected_runtime_scope": ["current repository documentation"],
+    "expected_tool_scope": ["read-only CI log access"],
+    "human_review_required": false,
+    "expected_reasoning_points": ["logs are live", "debugging behaviour can be aligned", "write actions are unnecessary"]
+  },
+  {
+    "id": "scenario-011",
+    "use_case": "An API classifies incoming messages into a fixed taxonomy using hundreds of reviewed examples and a strict JSON format.",
+    "expected_architecture": "alignment",
+    "expected_alignment_scope": ["fixed taxonomy", "classification boundaries", "strict output shape"],
+    "expected_runtime_scope": [],
+    "expected_tool_scope": ["schema validation"],
+    "human_review_required": false,
+    "expected_reasoning_points": ["repeated stable decision pattern suits alignment", "output validation remains deterministic"]
+  },
+  {
+    "id": "scenario-012",
+    "use_case": "A team wants a specialist assistant but only has a two-paragraph marketing page and no examples of acceptable answers.",
+    "expected_architecture": "general_model",
+    "expected_alignment_scope": [],
+    "expected_runtime_scope": [],
+    "expected_tool_scope": [],
+    "human_review_required": false,
+    "expected_reasoning_points": ["documents are insufficient for alignment", "prototype and collect examples first"]
+  },
+  {
+    "id": "scenario-013",
+    "use_case": "Two policy manuals disagree about escalation thresholds and neither has an owner or effective date.",
+    "expected_architecture": "rag",
+    "expected_alignment_scope": [],
+    "expected_runtime_scope": ["resolved authoritative policy after governance review"],
+    "expected_tool_scope": [],
+    "human_review_required": true,
+    "expected_reasoning_points": ["do not align contradictions", "resolve authority and versioning before automation"]
+  },
+  {
+    "id": "scenario-014",
+    "use_case": "An assistant recommends whether to approve a high-value loan using current account data and regulated decision rules.",
+    "expected_architecture": "hybrid",
+    "expected_alignment_scope": ["explanation format", "uncertainty and escalation language"],
+    "expected_runtime_scope": ["current approved lending policy"],
+    "expected_tool_scope": ["authorized account data", "validated eligibility calculation"],
+    "human_review_required": true,
+    "expected_reasoning_points": ["model must not make final approval", "regulated rules are deterministic", "current private data requires tools"]
+  },
+  {
+    "id": "scenario-015",
+    "use_case": "A casual writing assistant rewrites general meeting notes for clarity with no specialist vocabulary or compliance requirements.",
+    "expected_architecture": "general_model",
+    "expected_alignment_scope": [],
+    "expected_runtime_scope": [],
+    "expected_tool_scope": [],
+    "human_review_required": false,
+    "expected_reasoning_points": ["generic capability is sufficient", "alignment would add cost without a defined benefit"]
+  }
+]
+

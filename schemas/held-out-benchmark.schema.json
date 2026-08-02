@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DomainFitHeldOutBenchmark",
+  "type": "array",
+  "minItems": 15,
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["id", "use_case", "expected_architecture", "expected_alignment_scope", "expected_runtime_scope", "expected_tool_scope", "human_review_required", "expected_reasoning_points"],
+    "properties": {
+      "id": {"type": "string", "pattern": "^scenario-[0-9]{3}$"},
+      "use_case": {"type": "string", "minLength": 10},
+      "expected_architecture": {"enum": ["general_model", "alignment", "rag", "tools", "hybrid"]},
+      "expected_alignment_scope": {"type": "array", "items": {"type": "string"}},
+      "expected_runtime_scope": {"type": "array", "items": {"type": "string"}},
+      "expected_tool_scope": {"type": "array", "items": {"type": "string"}},
+      "human_review_required": {"type": "boolean"},
+      "expected_reasoning_points": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+    }
+  }
+}
+

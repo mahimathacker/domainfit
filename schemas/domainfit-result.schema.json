@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainfit.dev/schemas/domainfit-result.schema.json",
+  "title": "DomainFitResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["recommended_architecture", "confidence", "summary", "assumptions", "decision_factors", "alignment_scope", "runtime_retrieval_scope", "tool_scope", "deterministic_logic", "human_review", "document_readiness", "benchmark_plan", "implementation_steps", "risks", "limitations"],
+  "properties": {
+    "recommended_architecture": {"enum": ["general_model", "alignment", "rag", "tools", "hybrid"]},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "summary": {"type": "string", "minLength": 1},
+    "assumptions": {"type": "array", "items": {"type": "string"}},
+    "decision_factors": {"type": "array", "items": {"$ref": "#/$defs/factor"}},
+    "alignment_scope": {"type": "array", "items": {"type": "string"}},
+    "runtime_retrieval_scope": {"type": "array", "items": {"type": "string"}},
+    "tool_scope": {"type": "array", "items": {"type": "string"}},
+    "deterministic_logic": {"type": "array", "items": {"type": "string"}},
+    "human_review": {"$ref": "#/$defs/humanReview"},
+    "document_readiness": {"$ref": "#/$defs/documentReadiness"},
+    "benchmark_plan": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/benchmarkItem"}},
+    "implementation_steps": {"type": "array", "items": {"type": "string"}},
+    "risks": {"type": "array", "items": {"type": "string"}},
+    "limitations": {"type": "array", "items": {"type": "string"}}
+  },
+  "$defs": {
+    "factor": {"type": "object", "additionalProperties": false, "required": ["factor", "impact"], "properties": {"factor": {"type": "string"}, "impact": {"type": "string"}}},
+    "humanReview": {"type": "object", "additionalProperties": false, "required": ["required", "reasons"], "properties": {"required": {"type": "boolean"}, "reasons": {"type": "array", "items": {"type": "string"}}}},
+    "documentReadiness": {"type": "object", "additionalProperties": false, "required": ["score", "strengths", "gaps", "recommended_documents"], "properties": {"score": {"type": "integer", "minimum": 0, "maximum": 100}, "strengths": {"type": "array", "items": {"type": "string"}}, "gaps": {"type": "array", "items": {"type": "string"}}, "recommended_documents": {"type": "array", "items": {"type": "string"}}}},
+    "benchmarkItem": {"type": "object", "additionalProperties": false, "required": ["category", "question", "expected_answer", "rationale"], "properties": {"category": {"type": "string"}, "question": {"type": "string"}, "expected_answer": {"type": "string"}, "rationale": {"type": "string"}}}
+  }
+}
+

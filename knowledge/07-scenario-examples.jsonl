@@ -1,0 +1,6 @@
+{"scenario":"A public FAQ uses stable tone but prices change weekly.","recommendation":"hybrid","alignment":"tone and escalation","retrieval":"prices and current terms","tools":[]}
+{"scenario":"A writing assistant improves generic meeting notes.","recommendation":"general_model","alignment":"","retrieval":"","tools":[]}
+{"scenario":"An internal assistant reads live account entitlements and opens tickets.","recommendation":"hybrid","alignment":"support triage behaviour","retrieval":"current internal policy","tools":["entitlement lookup","ticket creation"]}
+{"scenario":"A legal information tool summarizes approved policies with citations.","recommendation":"rag","alignment":"","retrieval":"approved current policies","tools":[]}
+{"scenario":"A healthcare intake flow classifies urgency and schedules visits.","recommendation":"hybrid","alignment":"consistent intake and escalation language","retrieval":"current clinic guidance","tools":["validated triage rules","scheduling with approval"]}
+

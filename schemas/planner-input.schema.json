@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PlannerInput",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["use_case", "users", "domain", "stable_behaviour", "changing_facts", "citations_required", "live_private_data", "external_actions", "mistake_impact", "human_approval", "available_documents", "document_change_frequency", "latency_requirements", "usage_requirements"],
+  "properties": {
+    "use_case": {"type": "string", "minLength": 10, "maxLength": 2000},
+    "users": {"type": "string", "minLength": 2, "maxLength": 500},
+    "domain": {"type": "string", "minLength": 2, "maxLength": 200},
+    "stable_behaviour": {"type": "string", "maxLength": 2000},
+    "changing_facts": {"type": "string", "maxLength": 2000},
+    "citations_required": {"type": "boolean"},
+    "live_private_data": {"type": "boolean"},
+    "external_actions": {"type": "boolean"},
+    "mistake_impact": {"enum": ["low", "medium", "high", "critical"]},
+    "human_approval": {"type": "boolean"},
+    "available_documents": {"type": "string", "maxLength": 3000},
+    "document_change_frequency": {"enum": ["rarely", "quarterly", "monthly", "weekly", "daily"]},
+    "latency_requirements": {"type": "string", "maxLength": 500},
+    "usage_requirements": {"type": "string", "maxLength": 500}
+  }
+}
+
