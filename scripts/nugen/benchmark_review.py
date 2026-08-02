@@ -29,7 +29,9 @@ def _items(payload: Any) -> list[dict[str, Any]]:
     return []
 
 
-def review_benchmark(payload: Any, source_documents: list[str] | None = None) -> list[ReviewFinding]:
+def review_benchmark(
+    payload: Any, source_documents: list[str] | None = None
+) -> list[ReviewFinding]:
     items = _items(payload)
     findings = [ReviewFinding(index=index) for index in range(len(items))]
     normalized_questions: list[str] = []
@@ -62,4 +64,3 @@ def review_benchmark(payload: Any, source_documents: list[str] | None = None) ->
 
 def extract_items(payload: Any) -> list[dict[str, Any]]:
     return _items(payload)
-

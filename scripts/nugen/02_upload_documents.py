@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
 from scripts.nugen.common import PREPARED_DATASET, ROOT, client_from_env, state_store, status_from
@@ -55,4 +54,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

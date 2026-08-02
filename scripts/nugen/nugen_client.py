@@ -130,7 +130,8 @@ class NugenClient:
             if issubclass(model_type, BaseModel):
                 return model_type.model_validate(payload)
         except (ValidationError, TypeError) as exc:
-            raise NugenResponseError(f"Unexpected Nugen response for {model_type.__name__}") from exc
+            message = f"Unexpected Nugen response for {model_type.__name__}"
+            raise NugenResponseError(message) from exc
         raise TypeError("model_type must be a Pydantic model")
 
     def list_base_models(self) -> list[BaseModelInfo]:
@@ -142,7 +143,11 @@ class NugenClient:
             raise NugenResponseError("Unexpected base-model response") from exc
 
     def select_alignment_ready_model(self, preferred_id: str | None = None) -> BaseModelInfo:
-        candidates = [model for model in self.list_base_models() if model.alignment_ready and model.is_active]
+        candidates = [
+            model
+            for model in self.list_base_models()
+            if model.alignment_ready and model.is_active
+        ]
         if preferred_id:
             match = next((model for model in candidates if model.id == preferred_id), None)
             if match:
@@ -324,4 +329,3 @@ class NugenClient:
             "data": data,
         }
         return NugenClient._model(AlignmentStatus, normalized)
-

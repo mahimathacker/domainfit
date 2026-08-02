@@ -54,7 +54,8 @@ def main() -> None:
             )
             state.metadata["official_evaluation_status"] = result
             state.metadata["official_evaluation_results"] = client.get_evaluation_results(job.id)
-    output = ROOT / "evaluations" / f"comparison-{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}.json"
+    filename = f"comparison-{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}.json"
+    output = ROOT / "evaluations" / filename
     write_json(output, {"comparisons": comparisons})
     state.complete("comparison")
     store.save(state)
@@ -63,4 +64,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

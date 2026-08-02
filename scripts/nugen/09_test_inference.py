@@ -25,7 +25,12 @@ def main() -> None:
             if not text:
                 raise ValueError("Inference returned an empty response")
             records.append(
-                {"prompt": prompt, "response": text, "model": response.model, "usage": response.usage}
+                {
+                    "prompt": prompt,
+                    "response": text,
+                    "model": response.model,
+                    "usage": response.usage,
+                }
             )
     output = ROOT / "artifacts" / "inference-smoke.json"
     write_json(output, {"created_at": datetime.now(UTC).isoformat(), "responses": records})
@@ -36,4 +41,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
