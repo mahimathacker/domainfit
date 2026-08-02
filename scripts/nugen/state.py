@@ -30,6 +30,26 @@ class PipelineState(BaseModel):
         if step not in self.completed_steps:
             self.completed_steps.append(step)
 
+    def reset_after_dataset_change(self) -> None:
+        """Discard downstream IDs so changed source data cannot reuse stale resources."""
+        self.completed_steps = [step for step in self.completed_steps if step == "verify"]
+        self.document_task_id = None
+        self.document_task_ids = []
+        self.document_ids = []
+        self.generated_benchmark_id = None
+        self.reviewed_benchmark_path = None
+        self.benchmark_id = None
+        self.alignment_id = None
+        self.aligned_model_id = None
+        self.deployed_model_id = None
+        self.evaluation_id = None
+        for key in (
+            "generated_benchmark_path",
+            "official_evaluation_status",
+            "official_evaluation_results",
+        ):
+            self.metadata.pop(key, None)
+
 
 class StateStore:
     def __init__(self, path: Path = Path("artifacts/state.json")) -> None:

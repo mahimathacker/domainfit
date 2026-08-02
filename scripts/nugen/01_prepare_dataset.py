@@ -35,15 +35,23 @@ def prepare(source: Path = ROOT / "knowledge") -> list[dict[str, object]]:
 
 def main() -> None:
     documents = prepare()
+    fingerprint = hashlib.sha256(
+        "".join(str(item["sha256"]) for item in documents).encode("utf-8")
+    ).hexdigest()
     write_json(PREPARED_DATASET, {"documents": documents})
     total = sum(int(item["bytes"]) for item in documents)
     print(f"Prepared {len(documents)} document(s), {total:,} bytes total.")
-    state = state_store().load()
+    store = state_store()
+    state = store.load()
+    previous_fingerprint = state.metadata.get("dataset_fingerprint")
+    if previous_fingerprint != fingerprint and state.document_ids:
+        state.reset_after_dataset_change()
+        print("Dataset changed; cleared saved downstream resource IDs.")
     state.metadata["prepared_documents"] = documents
+    state.metadata["dataset_fingerprint"] = fingerprint
     state.complete("prepare")
-    state_store().save(state)
+    store.save(state)
 
 
 if __name__ == "__main__":
     main()
-

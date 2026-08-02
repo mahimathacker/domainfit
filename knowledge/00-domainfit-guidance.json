@@ -1,0 +1,89 @@
+{
+  "title": "DomainFit architecture and confidence guidance",
+  "purpose": "Teach architecture selection and calibrated uncertainty without treating synthetic scores as facts.",
+  "architecture_rules": [
+    {
+      "architecture": "general_model",
+      "use_when": [
+        "the task is broad and low risk",
+        "generic model capabilities and prompting are sufficient",
+        "no stable specialist behavior has been demonstrated"
+      ],
+      "avoid_when": [
+        "current evidence, private data, controlled actions, or stable specialist behavior is required"
+      ]
+    },
+    {
+      "architecture": "alignment",
+      "use_when": [
+        "terminology, response structure, decision patterns, or escalation behavior must remain stable",
+        "representative approved examples and stable source material are available"
+      ],
+      "avoid_when": [
+        "the primary need is current facts, live data, permissions, calculations, or actions"
+      ]
+    },
+    {
+      "architecture": "rag",
+      "use_when": [
+        "facts change frequently",
+        "answers require exact approved evidence or citations"
+      ],
+      "avoid_when": [
+        "the primary requirement is stable behavior or an external action"
+      ]
+    },
+    {
+      "architecture": "tools",
+      "use_when": [
+        "live or private data is required",
+        "the system performs actions, calculations, permission checks, or deterministic validation"
+      ],
+      "avoid_when": [
+        "a model response alone can safely satisfy the requirement"
+      ]
+    },
+    {
+      "architecture": "hybrid",
+      "use_when": [
+        "stable specialist behavior must be combined with current evidence or controlled tools",
+        "high-impact workflows need validation or human approval across multiple system layers"
+      ],
+      "avoid_when": [
+        "one simpler architecture satisfies every material requirement"
+      ]
+    }
+  ],
+  "confidence_calibration": {
+    "principle": "Confidence describes the strength of the recommendation given the supplied evidence; it is not a memorized property of a scenario.",
+    "higher_confidence_when": [
+      "requirements clearly map to documented architecture rules",
+      "source ownership, freshness, behavior targets, and risk boundaries are explicit",
+      "representative examples and measurable success criteria are available"
+    ],
+    "lower_confidence_when": [
+      "requirements are ambiguous or contradictory",
+      "document authority, freshness, or coverage is unknown",
+      "tool permissions, risk ownership, or success criteria are missing"
+    ],
+    "required_behavior": [
+      "state material assumptions",
+      "identify the missing evidence that would change the recommendation",
+      "never present an arbitrary numeric score as an observed fact"
+    ]
+  },
+  "responsibility_boundaries": {
+    "alignment": "stable learned behavior",
+    "runtime_retrieval": "current approved evidence and citations",
+    "tools": "live or private data, calculations, permissions, and actions",
+    "deterministic_logic": "authorization, schemas, hard rules, idempotency, and approval gates",
+    "human_review": "material decisions, unresolved ambiguity, and accountable approval"
+  },
+  "benchmark_guidance": [
+    "test application of the framework to new scenarios rather than recall of document fields",
+    "include normal, boundary, conflicting, insufficient-information, and high-risk cases",
+    "keep a held-out evaluation set separate from alignment material",
+    "score required reasoning points and safety boundaries without rewarding verbosity"
+  ]
+}
+
