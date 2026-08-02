@@ -18,7 +18,8 @@ def main() -> None:
     if not state.document_ids or not state.benchmark_id:
         raise SystemExit("Uploaded document and reviewed benchmark IDs are required")
     with client_from_env() as client:
-        model = client.select_alignment_ready_model(state.base_model_id)
+        preferred_model = client.config.base_model or state.base_model_id
+        model = client.select_alignment_ready_model(preferred_model)
         state.base_model_id = model.id
         job = client.create_alignment(
             name=args.name,
@@ -35,4 +36,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
