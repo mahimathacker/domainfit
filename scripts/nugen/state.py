@@ -14,6 +14,7 @@ class PipelineState(BaseModel):
     model_config = ConfigDict(extra="allow")
     completed_steps: list[str] = Field(default_factory=list)
     document_task_id: str | None = None
+    document_task_ids: list[str] = Field(default_factory=list)
     document_ids: list[str] = Field(default_factory=list)
     generated_benchmark_id: str | None = None
     reviewed_benchmark_path: str | None = None

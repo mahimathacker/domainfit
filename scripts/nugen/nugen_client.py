@@ -167,19 +167,19 @@ class NugenClient:
                 files.append(("files", (path.name, handle, "application/octet-stream")))
             if not files:
                 raise ValueError("At least one document is required")
-            return self._request("POST", f"{self.API_PREFIX}/documents/upload", files=files)
+            return self._request("POST", f"{self.API_PREFIX}/documents", files=files)
         finally:
             for handle in opened:
                 handle.close()
 
     def get_document_status(self, task_id: str) -> Any:
-        return self._request("GET", f"{self.API_PREFIX}/documents/status/{task_id}")
+        return self._request("GET", f"{self.API_PREFIX}/documents/{task_id}")
 
     def create_benchmark(self, document_ids: list[str], **options: Any) -> CreatedJob:
         payload = self._request(
             "POST",
             f"{self.API_PREFIX}/benchmark/create",
-            json={"document_ids": document_ids, **options},
+            json={"documents": document_ids, **options},
         )
         return self._created_job(payload)
 
@@ -187,14 +187,20 @@ class NugenClient:
         return self._request("GET", f"{self.API_PREFIX}/benchmark/status/{benchmark_id}")
 
     def get_benchmark_data(self, benchmark_id: str) -> Any:
-        return self._request("GET", f"{self.API_PREFIX}/benchmark/data/{benchmark_id}")
+        return self._request("GET", f"{self.API_PREFIX}/benchmark/{benchmark_id}/data")
 
-    def upload_benchmark(self, path: Path) -> CreatedJob:
+    def upload_benchmark(
+        self, path: Path, *, name: str, document_id: str, description: str | None = None
+    ) -> CreatedJob:
+        data = {"name": name, "document_id": document_id}
+        if description:
+            data["description"] = description
         with path.open("rb") as handle:
             payload = self._request(
                 "POST",
                 f"{self.API_PREFIX}/benchmark/upload",
                 files={"file": (path.name, handle, "application/json")},
+                data=data,
             )
         return self._created_job(payload)
 

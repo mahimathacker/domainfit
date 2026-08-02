@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import httpx
 import pytest
@@ -83,6 +84,63 @@ def test_create_alignment_uses_documented_request_shape() -> None:
     assert job.id == "alignment-1"
 
 
+def test_document_upload_uses_openapi_endpoint_and_files_field(tmp_path: Path) -> None:
+    document = tmp_path / "examples.jsonl"
+    document.write_text('{"example":true}\n', encoding="utf-8")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/v3/documents"
+        assert b'name="files"' in request.content
+        assert b'examples.jsonl' in request.content
+        return httpx.Response(200, json={"document_ids": ["upload-task-1"]})
+
+    with client(handler) as nugen:
+        assert nugen.upload_documents([document]) == {"document_ids": ["upload-task-1"]}
+
+
+def test_document_status_uses_task_id_as_resource_path() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v3/documents/upload-task-1"
+        return httpx.Response(200, json={"status": "READY", "document_id": "doc-1"})
+
+    with client(handler) as nugen:
+        assert nugen.get_document_status("upload-task-1")["document_id"] == "doc-1"
+
+
+def test_benchmark_generation_uses_documents_field() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v3/benchmark/create"
+        assert json.loads(request.content) == {"documents": ["doc-1"], "num_questions": 20}
+        return httpx.Response(200, json={"benchmark_id": "benchmark-1", "status": "PROCESSING"})
+
+    with client(handler) as nugen:
+        job = nugen.create_benchmark(["doc-1"], num_questions=20)
+    assert job.id == "benchmark-1"
+
+
+def test_benchmark_upload_includes_required_multipart_fields(tmp_path: Path) -> None:
+    benchmark = tmp_path / "benchmark.json"
+    benchmark.write_text("[]\n", encoding="utf-8")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v3/benchmark/upload"
+        assert b'name="file"' in request.content
+        assert b'name="name"' in request.content
+        assert b"DomainFit Benchmark" in request.content
+        assert b'name="document_id"' in request.content
+        assert b"doc-1" in request.content
+        return httpx.Response(
+            200, json={"benchmark_id": "benchmark-1", "status": "READY"}
+        )
+
+    with client(handler) as nugen:
+        job = nugen.upload_benchmark(
+            benchmark, name="DomainFit Benchmark", document_id="doc-1"
+        )
+    assert job.id == "benchmark-1"
+
+
 @pytest.mark.parametrize(
     ("payload", "expected"),
     [("model-1", "model-1"), ({"model_id": "model-2"}, "model-2")],
@@ -140,4 +198,3 @@ def test_malformed_success_response_is_rejected() -> None:
 
     with client(handler) as nugen, pytest.raises(NugenResponseError):
         nugen.list_base_models()
-

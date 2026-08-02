@@ -8,17 +8,23 @@ from typing import Any
 from scripts.nugen.common import PREPARED_DATASET, ROOT, client_from_env, state_store, status_from
 
 
-def _task_id(payload: Any) -> str:
+def _task_ids(payload: Any) -> list[str]:
     if isinstance(payload, dict):
+        document_ids = payload.get("document_ids")
+        if isinstance(document_ids, list) and all(isinstance(item, str) for item in document_ids):
+            return document_ids
         for key in ("task_id", "id", "upload_id"):
             if isinstance(payload.get(key), str):
-                return payload[key]
-    raise ValueError("Document upload response did not contain a task ID")
+                return [payload[key]]
+    raise ValueError("Document upload response did not contain task IDs")
 
 
 def _document_ids(payload: Any) -> list[str]:
     if not isinstance(payload, dict):
         return []
+    single = payload.get("document_id")
+    if isinstance(single, str):
+        return [single]
     candidates = payload.get("document_ids") or payload.get("documents") or []
     result = []
     for item in candidates:
@@ -35,16 +41,24 @@ def main() -> None:
     store = state_store()
     state = store.load()
     with client_from_env() as client:
-        if not state.document_task_id:
-            response = client.upload_documents(paths)
-            state.document_task_id = _task_id(response)
-            store.save(state)
-        completed = client.poll(
-            lambda: client.get_document_status(state.document_task_id or ""),
-            status_of=status_from,
-            success={"READY", "COMPLETED"},
+        task_ids = state.document_task_ids or (
+            [state.document_task_id] if state.document_task_id else []
         )
-    state.document_ids = _document_ids(completed)
+        if not task_ids:
+            response = client.upload_documents(paths)
+            task_ids = _task_ids(response)
+            state.document_task_ids = task_ids
+            state.document_task_id = task_ids[0]
+            store.save(state)
+        completed = [
+            client.poll(
+                lambda task_id=task_id: client.get_document_status(task_id),
+                status_of=status_from,
+                success={"READY", "COMPLETED"},
+            )
+            for task_id in task_ids
+        ]
+    state.document_ids = [document_id for item in completed for document_id in _document_ids(item)]
     if not state.document_ids:
         raise ValueError("Document processing completed without document IDs")
     state.complete("upload")
