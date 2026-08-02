@@ -5,8 +5,7 @@ import { ArrowLeft, ArrowRight, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { createMockResult } from "@/lib/domainfit/mock-result";
-import { defaultPlannerInput, plannerSchema, type PlannerInput } from "@/lib/domainfit/schemas";
+import { defaultPlannerInput, domainFitResultSchema, plannerSchema, type PlannerInput } from "@/lib/domainfit/schemas";
 
 const DRAFT_KEY = "domainfit:planner-draft";
 const steps = ["Use case", "Runtime needs", "Risk & evidence", "Operations"];
@@ -41,13 +40,24 @@ export function ArchitecturePlannerForm() {
     setSubmitting(true);
     setSubmitError("");
     try {
+      const response = await fetch("/api/plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const payload: unknown = await response.json();
+      if (!response.ok || !payload || typeof payload !== "object" || !("result" in payload)) {
+        const message = payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string" ? payload.error : "Unable to generate the plan";
+        throw new Error(message);
+      }
+      const result = domainFitResultSchema.parse(payload.result);
+      const mode = "mode" in payload && payload.mode === "live" ? "live" : "mock";
       const id = crypto.randomUUID();
-      const result = createMockResult(input);
-      window.localStorage.setItem(`domainfit:result:${id}`, JSON.stringify({ input, result, mode: "mock", createdAt: new Date().toISOString() }));
+      window.localStorage.setItem(`domainfit:result:${id}`, JSON.stringify({ input, result, mode, createdAt: new Date().toISOString() }));
       window.localStorage.removeItem(DRAFT_KEY);
       router.push(`/results/${id}`);
-    } catch {
-      setSubmitError("We could not create the plan. Your draft is saved; please try again.");
+    } catch (error) {
+      setSubmitError(`${error instanceof Error ? error.message : "We could not create the plan."} Your draft is saved; please try again.`);
       setSubmitting(false);
     }
   }
