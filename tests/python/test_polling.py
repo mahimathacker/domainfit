@@ -17,6 +17,9 @@ find_aligned_model = import_module("scripts.nugen.08_deploy_model").find_aligned
 deployment_failure_reason = import_module(
     "scripts.nugen.08_deploy_model"
 ).deployment_failure_reason
+has_repetition_collapse = import_module(
+    "scripts.nugen.09_test_inference"
+).has_repetition_collapse
 
 
 def nugen() -> NugenClient:
@@ -141,3 +144,11 @@ def test_deployment_failure_reason_reads_nested_task_error() -> None:
     payload = {"status": "FAILED", "result": {"error": "Provider rejected deployment"}}
 
     assert deployment_failure_reason(payload) == "Provider rejected deployment"
+
+
+def test_repetition_collapse_detection() -> None:
+    repeated = " ".join(["repeat this phrase"] * 20)
+    varied = " ".join(f"word-{index}" for index in range(60))
+
+    assert has_repetition_collapse(repeated)
+    assert not has_repetition_collapse(varied)
