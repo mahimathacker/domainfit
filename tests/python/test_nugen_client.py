@@ -10,6 +10,7 @@ from scripts.nugen.config import NugenConfig
 from scripts.nugen.nugen_client import (
     NugenAuthenticationError,
     NugenClient,
+    NugenConflictError,
     NugenResponseError,
     NugenValidationError,
 )
@@ -45,6 +46,24 @@ def test_list_base_models_constructs_authenticated_request() -> None:
         models = nugen.list_base_models()
     assert models[0].id == "base-1"
     assert models[0].alignment_ready is True
+
+
+def test_conflict_exposes_existing_document_id() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            409,
+            json={
+                "detail": {
+                    "message": "Already uploaded",
+                    "document_id": "doc-existing",
+                }
+            },
+        )
+
+    with client(handler) as nugen, pytest.raises(NugenConflictError) as error:
+        nugen.upload_documents([Path("knowledge/00-domainfit-guidance.json")])
+
+    assert error.value.payload["detail"]["document_id"] == "doc-existing"
 
 
 def test_select_alignment_ready_model_honors_preference() -> None:

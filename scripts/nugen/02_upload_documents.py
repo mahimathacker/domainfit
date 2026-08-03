@@ -8,7 +8,12 @@ from collections.abc import Callable
 from typing import Any
 
 from scripts.nugen.common import PREPARED_DATASET, ROOT, client_from_env, state_store, status_from
-from scripts.nugen.nugen_client import NugenClient, NugenJobFailedError, NugenPollingTimeoutError
+from scripts.nugen.nugen_client import (
+    NugenClient,
+    NugenConflictError,
+    NugenJobFailedError,
+    NugenPollingTimeoutError,
+)
 
 
 def _task_ids(payload: Any) -> list[str]:
@@ -25,6 +30,19 @@ def _task_ids(payload: Any) -> list[str]:
 def _document_ids(payload: Any) -> list[str]:
     if not isinstance(payload, dict):
         return []
+    detail = payload.get("detail")
+    if isinstance(detail, dict):
+        nested = _document_ids(detail)
+        if nested:
+            return nested
+    if isinstance(detail, str):
+        try:
+            nested_payload = json.loads(detail)
+        except json.JSONDecodeError:
+            nested_payload = None
+        nested = _document_ids(nested_payload)
+        if nested:
+            return nested
     single = payload.get("document_id")
     if isinstance(single, str):
         return [single]
@@ -80,14 +98,31 @@ def main() -> None:
         task_ids = state.document_task_ids or (
             [state.document_task_id] if state.document_task_id else []
         )
-        if not task_ids:
-            response = client.upload_documents(paths)
-            task_ids = _task_ids(response)
+        document_ids = list(state.document_ids)
+        if not task_ids and not document_ids:
+            for path in paths:
+                try:
+                    response = client.upload_documents([path])
+                except NugenConflictError as exc:
+                    existing_ids = _document_ids(exc.payload)
+                    if not existing_ids:
+                        raise
+                    document_ids.extend(existing_ids)
+                    print(
+                        f"Reusing existing document: {path.name} ({existing_ids[0]})",
+                        flush=True,
+                    )
+                else:
+                    task_ids.extend(_task_ids(response))
             state.document_task_ids = task_ids
-            state.document_task_id = task_ids[0]
+            state.document_task_id = task_ids[0] if task_ids else None
+            state.document_ids = document_ids
             store.save(state)
-        completed = poll_document_tasks(client, task_ids)
-    state.document_ids = [document_id for item in completed for document_id in _document_ids(item)]
+        completed = poll_document_tasks(client, task_ids) if task_ids else []
+    processed_ids = [
+        document_id for item in completed for document_id in _document_ids(item)
+    ]
+    state.document_ids = list(dict.fromkeys([*document_ids, *processed_ids]))
     if not state.document_ids:
         raise ValueError("Document processing completed without document IDs")
     state.complete("upload")

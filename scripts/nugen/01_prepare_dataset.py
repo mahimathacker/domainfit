@@ -3,12 +3,31 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from scripts.nugen.common import PREPARED_DATASET, ROOT, state_store, write_json
+from scripts.nugen.models import DomainFitResult
 
 ALLOWED_SUFFIXES = {".md", ".txt", ".json", ".jsonl", ".pdf"}
 SECRET_MARKERS = ("NUGEN_API_KEY=", "BEGIN PRIVATE KEY", "Bearer sk-")
+
+
+def validate_instruction_examples(path: Path, text: str) -> None:
+    if path.name != "08-instruction-response-examples.jsonl":
+        return
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        try:
+            record = json.loads(line)
+            if not isinstance(record.get("instruction"), str):
+                raise ValueError("instruction must be a string")
+            if not isinstance(record.get("input"), dict):
+                raise ValueError("input must be an object")
+            DomainFitResult.model_validate(record.get("ideal_response"))
+        except (json.JSONDecodeError, ValidationError, ValueError) as exc:
+            raise ValueError(f"Invalid instruction example at {path}:{line_number}: {exc}") from exc
 
 
 def prepare(source: Path = ROOT / "knowledge") -> list[dict[str, object]]:
@@ -21,6 +40,7 @@ def prepare(source: Path = ROOT / "knowledge") -> list[dict[str, object]]:
             text = content.decode("utf-8")
             if any(marker in text for marker in SECRET_MARKERS):
                 raise ValueError(f"Potential secret found in {path}")
+            validate_instruction_examples(path, text)
         documents.append(
             {
                 "path": str(path.relative_to(ROOT)),

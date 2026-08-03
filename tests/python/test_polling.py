@@ -13,6 +13,7 @@ from scripts.nugen.nugen_client import (
 )
 
 poll_document_tasks = import_module("scripts.nugen.02_upload_documents").poll_document_tasks
+document_ids_from = import_module("scripts.nugen.02_upload_documents")._document_ids
 find_aligned_model = import_module("scripts.nugen.08_deploy_model").find_aligned_model
 deployment_failure_reason = import_module(
     "scripts.nugen.08_deploy_model"
@@ -125,6 +126,12 @@ def test_document_tasks_are_polled_together(capsys: pytest.CaptureFixture[str]) 
     assert calls == ["task-1", "task-2"]
     assert [item["document_id"] for item in completed] == ["doc-task-1", "doc-task-2"]
     assert "task-1=READY" in capsys.readouterr().out
+
+
+def test_document_id_is_read_from_nested_conflict_detail() -> None:
+    assert document_ids_from({"detail": {"document_id": "doc-existing"}}) == [
+        "doc-existing"
+    ]
 
 
 def test_aligned_model_is_found_by_model_or_alignment_id() -> None:

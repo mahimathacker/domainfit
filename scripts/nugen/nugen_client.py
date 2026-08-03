@@ -47,6 +47,12 @@ class NugenNotFoundError(NugenError):
     pass
 
 
+class NugenConflictError(NugenError):
+    def __init__(self, message: str, payload: Any = None) -> None:
+        super().__init__(message)
+        self.payload = payload
+
+
 class NugenJobFailedError(NugenError):
     pass
 
@@ -118,6 +124,12 @@ class NugenClient:
             raise NugenRateLimitError(detail or "Nugen rate limit reached")
         if response.status_code == 404:
             raise NugenNotFoundError(detail or "Nugen resource not found")
+        if response.status_code == 409:
+            try:
+                conflict_payload = response.json()
+            except json.JSONDecodeError:
+                conflict_payload = None
+            raise NugenConflictError(detail or "Nugen resource conflict", conflict_payload)
         if response.status_code in {400, 402} and "credit" in detail.lower():
             raise NugenCreditsError(detail)
         if response.status_code >= 500:
