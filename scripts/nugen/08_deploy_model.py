@@ -48,6 +48,16 @@ def deployment_failure_reason(payload: dict[str, Any]) -> str:
     )
 
 
+def has_active_deployment(payload: Any) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    reason = deployment_failure_reason(payload).lower()
+    return not (
+        str(payload.get("status", "")).upper() == "FAILED"
+        and "no active deployment" in reason
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--confirm", action="store_true")
@@ -61,8 +71,10 @@ def main() -> None:
         aligned_model_id = state.aligned_model_id
         model_id = aligned_model_id
         try:
-            client.get_deployment_status(model_id)
+            deployment_status = client.get_deployment_status(model_id)
         except NugenNotFoundError:
+            deployment_status = None
+        if not has_active_deployment(deployment_status):
             model_id = client.deploy_model(aligned_model_id)
             print(f"Deployment requested: {model_id}", flush=True)
         else:

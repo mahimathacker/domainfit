@@ -18,6 +18,7 @@ find_aligned_model = import_module("scripts.nugen.08_deploy_model").find_aligned
 deployment_failure_reason = import_module(
     "scripts.nugen.08_deploy_model"
 ).deployment_failure_reason
+has_active_deployment = import_module("scripts.nugen.08_deploy_model").has_active_deployment
 has_repetition_collapse = import_module(
     "scripts.nugen.09_test_inference"
 ).has_repetition_collapse
@@ -154,6 +155,16 @@ def test_deployment_failure_reason_reads_nested_task_error() -> None:
     payload = {"status": "FAILED", "result": {"error": "Provider rejected deployment"}}
 
     assert deployment_failure_reason(payload) == "Provider rejected deployment"
+
+
+def test_no_active_deployment_is_not_treated_as_resumable() -> None:
+    payload = {
+        "status": "FAILED",
+        "result": {"error": "No active deployment. Model status is EVALUATED."},
+    }
+
+    assert not has_active_deployment(payload)
+    assert has_active_deployment({"status": "PENDING", "result": None})
 
 
 def test_repetition_collapse_detection() -> None:
