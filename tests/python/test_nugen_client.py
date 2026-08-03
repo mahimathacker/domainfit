@@ -165,6 +165,29 @@ def test_deployment_status_uses_documented_task_endpoint() -> None:
         assert nugen.get_deployment_status("aligned-1")["status"] == "PENDING"
 
 
+def test_chat_completion_uses_documented_endpoint_and_messages() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v3/inference/chat/completions"
+        body = json.loads(request.content)
+        assert body["messages"] == [{"role": "user", "content": "prompt"}]
+        return httpx.Response(
+            200,
+            json={
+                "model": "model-1",
+                "choices": [{"message": {"role": "assistant", "content": "result"}}],
+            },
+        )
+
+    with NugenClient(
+        NugenConfig(api_key="test", base_url="https://api.nugen.test"),
+        transport=httpx.MockTransport(handler),
+    ) as nugen:
+        response = nugen.chat_complete(
+            "model-1", [{"role": "user", "content": "prompt"}]
+        )
+        assert response.text() == "result"
+
+
 def test_alignment_status_normalizes_envelope() -> None:
     def handler(_: httpx.Request) -> httpx.Response:
         return httpx.Response(

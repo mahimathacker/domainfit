@@ -20,6 +20,9 @@ deployment_failure_reason = import_module(
 has_repetition_collapse = import_module(
     "scripts.nugen.09_test_inference"
 ).has_repetition_collapse
+parse_domainfit_result = import_module(
+    "scripts.nugen.09_test_inference"
+).parse_domainfit_result
 
 
 def nugen() -> NugenClient:
@@ -152,3 +155,8 @@ def test_repetition_collapse_detection() -> None:
 
     assert has_repetition_collapse(repeated)
     assert not has_repetition_collapse(varied)
+
+
+def test_production_diagnostic_rejects_non_json() -> None:
+    with pytest.raises(ValueError, match="does not contain a JSON object"):
+        parse_domainfit_result("not structured output")

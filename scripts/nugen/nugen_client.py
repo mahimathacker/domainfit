@@ -285,6 +285,28 @@ class NugenClient:
         )
         return self._model(CompletionResponse, payload)
 
+    def chat_complete(
+        self,
+        model: str,
+        messages: list[dict[str, str]],
+        *,
+        max_tokens: int = 1200,
+        temperature: float = 0.1,
+    ) -> CompletionResponse:
+        payload = self._request(
+            "POST",
+            f"{self.API_PREFIX}/inference/chat/completions",
+            timeout=httpx.Timeout(self.config.inference_timeout_seconds),
+            json={
+                "model": model,
+                "messages": messages,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "stream": False,
+            },
+        )
+        return self._model(CompletionResponse, payload)
+
     def create_evaluation(
         self, *, model_id: str, benchmark_id: str, model_id_2: str | None = None
     ) -> CreatedJob:
