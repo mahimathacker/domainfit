@@ -36,3 +36,25 @@ This indicates a difference between API-triggered and dashboard-triggered deploy
 - A failed deployment safely reverted the model to a deployable state instead of damaging the completed alignment.
 - The dashboard clearly displayed the model as undeployed and provided a successful recovery path.
 - The dedicated deployment-status endpoint exposed a bounded `PENDING`, `COMPLETED`, or `FAILED` lifecycle.
+
+## Inference and model-quality observations
+
+The first alignment used the alignment-ready `qwen-v2p5-0p5b-instruct` base model. Connectivity, authentication, deployment, and response parsing were verified successfully, but the resulting model did not meet the application-quality threshold.
+
+Controlled tests used identical inputs and generation settings for the base and aligned models:
+
+- Short text-completion prompts produced off-target answers and repeated phrases until the token limit.
+- A full production DomainFit prompt required structured JSON and a `hybrid` recommendation for a scenario combining stable behavior, changing evidence, private data, controlled actions, and human approval.
+- Both models failed to return JSON and entered repetition loops with the production prompt.
+- Repeating the production test through the documented chat-completions endpoint produced the same failure pattern.
+- The aligned model showed more severe repetition than the base model, indicating that this alignment was not suitable for production use.
+
+These results distinguish API success from model quality: a successful alignment and deployment do not guarantee that the resulting model satisfies the application contract.
+
+### Suggested improvements
+
+- Publish model-selection guidance for structured-output and reasoning workloads, including realistic minimum capability expectations.
+- Provide pre-alignment suitability checks using the intended production prompt and schema.
+- Include post-alignment quality gates for repetition, truncation, schema validity, and task-specific correctness.
+- Clarify how document structure and example format influence alignment quality.
+- Make it easy to compare base and aligned outputs before deployment.
