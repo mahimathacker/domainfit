@@ -25,6 +25,12 @@ has_repetition_collapse = import_module(
 parse_domainfit_result = import_module(
     "scripts.nugen.09_test_inference"
 ).parse_domainfit_result
+production_semantic_errors = import_module(
+    "scripts.nugen.09_test_inference"
+).production_semantic_errors
+DomainFitResult = import_module("scripts.nugen.models").DomainFitResult
+HumanReview = import_module("scripts.nugen.models").HumanReview
+FocusedDecision = import_module("scripts.nugen.09_test_inference").FocusedDecision
 
 
 def nugen() -> NugenClient:
@@ -178,3 +184,33 @@ def test_repetition_collapse_detection() -> None:
 def test_production_diagnostic_rejects_non_json() -> None:
     with pytest.raises(ValueError, match="does not contain a JSON object"):
         parse_domainfit_result("not structured output")
+
+
+def test_production_semantics_reject_misassigned_scopes() -> None:
+    result = DomainFitResult.model_construct(
+        recommended_architecture="hybrid",
+        alignment_scope=["Product guidance", "Account status"],
+        runtime_retrieval_scope=["Product guidance"],
+        tool_scope=["General model", "Alignment"],
+        deterministic_logic=["Schema validation"],
+        human_review=HumanReview(required=True, reasons=["High impact"]),
+    )
+
+    errors = production_semantic_errors(result)
+    assert "alignment scope must contain stable support behavior" in errors
+    assert "tool scope must contain private lookup or ticket action" in errors
+    assert "deterministic logic must contain authorization or approval controls" in errors
+
+
+def test_focused_decision_requires_supported_architecture() -> None:
+    decision = FocusedDecision.model_validate(
+        {
+            "recommended_architecture": "hybrid",
+            "reason": "Stable behavior, current evidence, private data, and actions differ.",
+        }
+    )
+    assert decision.recommended_architecture == "hybrid"
+    with pytest.raises(ValueError):
+        FocusedDecision.model_validate(
+            {"recommended_architecture": "always-align", "reason": "Invalid choice."}
+        )

@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 
 import httpx
-from pydantic import ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from scripts.nugen.common import ROOT, client_from_env, state_store, write_json
 from scripts.nugen.models import DomainFitResult
+from scripts.nugen.nugen_client import NugenServerError
 
 MAX_TOKENS = 1800
 TEMPERATURE = 0.1
@@ -22,6 +24,33 @@ SYSTEM_PROMPT = (
     "assumptions and require human review for high-impact outcomes. Return only one JSON "
     "object matching the requested schema, with no markdown."
 )
+OUTPUT_CONTRACT = """{
+  "recommended_architecture": "general_model | alignment | rag | tools | hybrid",
+  "confidence": 0.0,
+  "summary": "string",
+  "assumptions": ["string"],
+  "decision_factors": [{"factor": "string", "impact": "string"}],
+  "alignment_scope": ["string"],
+  "runtime_retrieval_scope": ["string"],
+  "tool_scope": ["string"],
+  "deterministic_logic": ["string"],
+  "human_review": {"required": true, "reasons": ["string"]},
+  "document_readiness": {
+    "score": 0,
+    "strengths": ["string"],
+    "gaps": ["string"],
+    "recommended_documents": ["string"]
+  },
+  "benchmark_plan": [{
+    "category": "string",
+    "question": "string",
+    "expected_answer": "string",
+    "rationale": "string"
+  }],
+  "implementation_steps": ["string"],
+  "risks": ["string"],
+  "limitations": ["string"]
+}"""
 PRODUCTION_INPUT: dict[str, Any] = {
     "use_case": (
         "A customer-support assistant must follow a stable diagnostic and escalation "
@@ -44,6 +73,15 @@ PRODUCTION_INPUT: dict[str, Any] = {
 }
 
 
+class FocusedDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    recommended_architecture: Literal[
+        "general_model", "alignment", "rag", "tools", "hybrid"
+    ]
+    reason: str = Field(min_length=10, max_length=500)
+
+
 def build_production_user_message(planner_input: dict[str, Any]) -> str:
     formatted_input = json.dumps(planner_input, indent=2, ensure_ascii=False)
     required_fields = (
@@ -57,6 +95,9 @@ def build_production_user_message(planner_input: dict[str, Any]) -> str:
 
 Required output fields:
 {required_fields}
+
+Required JSON shape (replace placeholder values, preserve every value type):
+{OUTPUT_CONTRACT}
 
 Architecture must be one of: general_model, alignment, rag, tools, hybrid.
 Confidence must be between 0 and 1. Document readiness score must be an integer from 0 to 100.
@@ -86,7 +127,106 @@ def parse_domainfit_result(text: str) -> DomainFitResult:
         raise ValueError(f"response failed the DomainFit schema: {exc}") from exc
 
 
+def production_semantic_errors(result: DomainFitResult) -> list[str]:
+    errors = []
+    alignment = " ".join(result.alignment_scope).lower()
+    retrieval = " ".join(result.runtime_retrieval_scope).lower()
+    tools = " ".join(result.tool_scope).lower()
+    controls = " ".join(result.deterministic_logic).lower()
+    if result.recommended_architecture != "hybrid":
+        errors.append("expected hybrid architecture")
+    if not any(term in alignment for term in ("diagnostic", "tone", "escalation")):
+        errors.append("alignment scope must contain stable support behavior")
+    if not any(term in retrieval for term in ("guidance", "incident")):
+        errors.append("retrieval scope must contain changing approved evidence")
+    if not any(term in tools for term in ("account", "ticket")):
+        errors.append("tool scope must contain private lookup or ticket action")
+    if not any(term in controls for term in ("authoriz", "approval", "idempot")):
+        errors.append("deterministic logic must contain authorization or approval controls")
+    if not result.human_review.required:
+        errors.append("high-impact workflow must require human review")
+    return errors
+
+
+def run_focused_aligned_test() -> None:
+    store = state_store()
+    state = store.load()
+    if not state.deployed_model_id:
+        raise SystemExit("A deployed aligned model ID is required")
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are DomainFit. Choose the smallest sufficient AI architecture. "
+                "Return only JSON with recommended_architecture and reason."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                "A support assistant needs stable diagnostic behavior, current cited "
+                "guidance, private account lookup, and ticket creation after approval. "
+                'Return: {"recommended_architecture":"general_model|alignment|rag|tools|'
+                'hybrid","reason":"one concise explanation"}'
+            ),
+        },
+    ]
+    print("Focused aligned-model inference 1/1...", flush=True)
+    try:
+        with client_from_env() as client:
+            response = client.chat_complete(
+                state.deployed_model_id,
+                messages,
+                max_tokens=200,
+                temperature=0.7,
+            )
+    except (httpx.TimeoutException, httpx.NetworkError, NugenServerError) as exc:
+        raise SystemExit(
+            "Focused aligned inference did not return after Nugen retries. This is a "
+            f"remote inference-service failure, not a JSON validation failure: {exc}"
+        ) from None
+    text = response.text().strip()
+    errors = []
+    parsed = None
+    try:
+        start = text.find("{")
+        if start < 0:
+            raise ValueError("response does not contain JSON")
+        payload, _ = json.JSONDecoder().raw_decode(text[start:])
+        parsed = FocusedDecision.model_validate(payload)
+    except (json.JSONDecodeError, ValidationError, ValueError) as exc:
+        errors.append(f"invalid focused response: {exc}")
+    if has_repetition_collapse(text):
+        errors.append("repetition collapse")
+    if parsed and parsed.recommended_architecture != "hybrid":
+        errors.append("expected hybrid architecture")
+    output = ROOT / "artifacts" / "focused-aligned-inference.json"
+    write_json(
+        output,
+        {
+            "created_at": datetime.now(UTC).isoformat(),
+            "model": response.model,
+            "messages": messages,
+            "response": text,
+            "parsed": parsed.model_dump() if parsed else None,
+            "usage": response.usage,
+            "quality": {"passed": not errors, "errors": errors},
+        },
+    )
+    print(f"Saved focused aligned-model result to {output}")
+    if errors:
+        raise SystemExit(f"Focused aligned-model test failed: {'; '.join(errors)}")
+    print("Focused aligned-model test passed")
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--focused-aligned", action="store_true")
+    args = parser.parse_args()
+    if args.focused_aligned:
+        run_focused_aligned_test()
+        return
+
     store = state_store()
     state = store.load()
     if not state.base_model_id or not state.deployed_model_id:
@@ -124,11 +264,8 @@ def main() -> None:
                     parsed = parse_domainfit_result(text)
                 except ValueError as exc:
                     errors.append(str(exc))
-                if parsed and parsed.recommended_architecture != "hybrid":
-                    errors.append(
-                        "expected hybrid for stable behavior, current evidence, private "
-                        "data, controlled actions, and high-impact review"
-                    )
+                if parsed:
+                    errors.extend(production_semantic_errors(parsed))
                 records.append(
                     {
                         "variant": variant,
@@ -139,7 +276,7 @@ def main() -> None:
                         "quality": {"passed": not errors, "errors": errors},
                     }
                 )
-    except (httpx.TimeoutException, httpx.NetworkError) as exc:
+    except (httpx.TimeoutException, httpx.NetworkError, NugenServerError) as exc:
         raise SystemExit(
             "Nugen production inference did not return after three attempts. "
             f"Details: {exc}"
