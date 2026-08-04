@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from importlib import import_module
 
 import httpx
@@ -31,6 +32,11 @@ production_semantic_errors = import_module(
 DomainFitResult = import_module("scripts.nugen.models").DomainFitResult
 HumanReview = import_module("scripts.nugen.models").HumanReview
 FocusedDecision = import_module("scripts.nugen.09_test_inference").FocusedDecision
+parse_focused_tool_call = import_module(
+    "scripts.nugen.09_test_inference"
+).parse_focused_tool_call
+parse_focused_output = import_module("scripts.nugen.09_test_inference").parse_focused_output
+CompletionResponse = import_module("scripts.nugen.models").CompletionResponse
 
 
 def nugen() -> NugenClient:
@@ -214,3 +220,58 @@ def test_focused_decision_requires_supported_architecture() -> None:
         FocusedDecision.model_validate(
             {"recommended_architecture": "always-align", "reason": "Invalid choice."}
         )
+
+
+def test_focused_tool_call_arguments_are_validated() -> None:
+    response = CompletionResponse.model_validate(
+        {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "function": {
+                                    "name": "submit_domainfit_decision",
+                                    "arguments": json.dumps(
+                                        {
+                                            "recommended_architecture": "hybrid",
+                                            "reason": "The requirements span every system layer.",
+                                        }
+                                    ),
+                                }
+                            }
+                        ],
+                    }
+                }
+            ]
+        }
+    )
+
+    assert parse_focused_tool_call(response).recommended_architecture == "hybrid"
+
+
+def test_focused_output_accepts_schema_valid_content_fallback() -> None:
+    response = CompletionResponse.model_validate(
+        {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": json.dumps(
+                            {
+                                "recommended_architecture": "hybrid",
+                                "reason": "Every architecture layer has a distinct responsibility.",
+                            }
+                        ),
+                        "tool_calls": None,
+                    }
+                }
+            ]
+        }
+    )
+
+    decision, source = parse_focused_output(response)
+    assert decision.recommended_architecture == "hybrid"
+    assert source == "content_json"

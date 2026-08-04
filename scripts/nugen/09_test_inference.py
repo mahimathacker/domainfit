@@ -82,6 +82,27 @@ class FocusedDecision(BaseModel):
     reason: str = Field(min_length=10, max_length=500)
 
 
+FOCUSED_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "submit_domainfit_decision",
+        "description": "Submit the final DomainFit architecture decision.",
+        "parameters": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "recommended_architecture": {
+                    "type": "string",
+                    "enum": ["general_model", "alignment", "rag", "tools", "hybrid"],
+                },
+                "reason": {"type": "string"},
+            },
+            "required": ["recommended_architecture", "reason"],
+        },
+    },
+}
+
+
 def build_production_user_message(planner_input: dict[str, Any]) -> str:
     formatted_input = json.dumps(planner_input, indent=2, ensure_ascii=False)
     required_fields = (
@@ -148,6 +169,42 @@ def production_semantic_errors(result: DomainFitResult) -> list[str]:
     return errors
 
 
+def parse_focused_tool_call(response: Any) -> FocusedDecision:
+    if not response.choices or not response.choices[0].message:
+        raise ValueError("response did not contain an assistant message")
+    tool_calls = response.choices[0].message.get("tool_calls")
+    if not isinstance(tool_calls, list) or not tool_calls:
+        raise ValueError("response did not call submit_domainfit_decision")
+    function = tool_calls[0].get("function") if isinstance(tool_calls[0], dict) else None
+    if not isinstance(function, dict) or function.get("name") != "submit_domainfit_decision":
+        raise ValueError("response called an unexpected function")
+    arguments = function.get("arguments")
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"tool arguments contain invalid JSON: {exc.msg}") from exc
+    try:
+        return FocusedDecision.model_validate(arguments)
+    except ValidationError as exc:
+        raise ValueError(f"tool arguments failed validation: {exc}") from exc
+
+
+def parse_focused_output(response: Any) -> tuple[FocusedDecision, str]:
+    try:
+        return parse_focused_tool_call(response), "tool_call"
+    except ValueError as tool_error:
+        text = response.text().strip()
+        start = text.find("{")
+        if start < 0:
+            raise ValueError(f"{tool_error}; response content did not contain JSON") from None
+        try:
+            payload, _ = json.JSONDecoder().raw_decode(text[start:])
+            return FocusedDecision.model_validate(payload), "content_json"
+        except (json.JSONDecodeError, ValidationError) as exc:
+            raise ValueError(f"{tool_error}; response content was invalid: {exc}") from exc
+
+
 def run_focused_aligned_test() -> None:
     store = state_store()
     state = store.load()
@@ -157,8 +214,23 @@ def run_focused_aligned_test() -> None:
         {
             "role": "system",
             "content": (
-                "You are DomainFit. Choose the smallest sufficient AI architecture. "
-                "Return only JSON with recommended_architecture and reason."
+                "You are DomainFit. Choose exactly one architecture from general_model, "
+                "alignment, rag, tools, or hybrid. Return only valid JSON with exactly "
+                "the keys recommended_architecture and reason."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                "A low-risk assistant rewrites ordinary notes with no specialist "
+                "behavior, changing facts, private data, or actions."
+            ),
+        },
+        {
+            "role": "assistant",
+            "content": (
+                '{"recommended_architecture":"general_model","reason":"Rewriting is '
+                'a broad capability and requires no specialist behavior or runtime data."}'
             ),
         },
         {
@@ -166,8 +238,7 @@ def run_focused_aligned_test() -> None:
             "content": (
                 "A support assistant needs stable diagnostic behavior, current cited "
                 "guidance, private account lookup, and ticket creation after approval. "
-                'Return: {"recommended_architecture":"general_model|alignment|rag|tools|'
-                'hybrid","reason":"one concise explanation"}'
+                "Return the same two-key JSON shape for this scenario."
             ),
         },
     ]
@@ -177,8 +248,13 @@ def run_focused_aligned_test() -> None:
             response = client.chat_complete(
                 state.deployed_model_id,
                 messages,
-                max_tokens=200,
-                temperature=0.7,
+                max_tokens=150,
+                temperature=0.2,
+                tools=[FOCUSED_TOOL],
+                tool_choice={
+                    "type": "function",
+                    "function": {"name": "submit_domainfit_decision"},
+                },
             )
     except (httpx.TimeoutException, httpx.NetworkError, NugenServerError) as exc:
         raise SystemExit(
@@ -188,14 +264,11 @@ def run_focused_aligned_test() -> None:
     text = response.text().strip()
     errors = []
     parsed = None
+    structured_via = None
     try:
-        start = text.find("{")
-        if start < 0:
-            raise ValueError("response does not contain JSON")
-        payload, _ = json.JSONDecoder().raw_decode(text[start:])
-        parsed = FocusedDecision.model_validate(payload)
-    except (json.JSONDecodeError, ValidationError, ValueError) as exc:
-        errors.append(f"invalid focused response: {exc}")
+        parsed, structured_via = parse_focused_output(response)
+    except ValueError as exc:
+        errors.append(f"invalid focused tool call: {exc}")
     if has_repetition_collapse(text):
         errors.append("repetition collapse")
     if parsed and parsed.recommended_architecture != "hybrid":
@@ -208,7 +281,9 @@ def run_focused_aligned_test() -> None:
             "model": response.model,
             "messages": messages,
             "response": text,
+            "raw_completion": response.model_dump(),
             "parsed": parsed.model_dump() if parsed else None,
+            "structured_via": structured_via,
             "usage": response.usage,
             "quality": {"passed": not errors, "errors": errors},
         },

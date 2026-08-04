@@ -304,18 +304,25 @@ class NugenClient:
         *,
         max_tokens: int = 1200,
         temperature: float = 0.1,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
     ) -> CompletionResponse:
+        body: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "stream": False,
+        }
+        if tools is not None:
+            body["tools"] = tools
+        if tool_choice is not None:
+            body["tool_choice"] = tool_choice
         payload = self._request(
             "POST",
             f"{self.API_PREFIX}/inference/chat/completions",
             timeout=httpx.Timeout(self.config.inference_timeout_seconds),
-            json={
-                "model": model,
-                "messages": messages,
-                "max_tokens": max_tokens,
-                "temperature": temperature,
-                "stream": False,
-            },
+            json=body,
         )
         return self._model(CompletionResponse, payload)
 

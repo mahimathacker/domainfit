@@ -189,6 +189,8 @@ def test_chat_completion_uses_documented_endpoint_and_messages() -> None:
         assert request.url.path == "/api/v3/inference/chat/completions"
         body = json.loads(request.content)
         assert body["messages"] == [{"role": "user", "content": "prompt"}]
+        assert body["tools"][0]["function"]["name"] == "submit"
+        assert body["tool_choice"]["function"]["name"] == "submit"
         return httpx.Response(
             200,
             json={
@@ -202,7 +204,10 @@ def test_chat_completion_uses_documented_endpoint_and_messages() -> None:
         transport=httpx.MockTransport(handler),
     ) as nugen:
         response = nugen.chat_complete(
-            "model-1", [{"role": "user", "content": "prompt"}]
+            "model-1",
+            [{"role": "user", "content": "prompt"}],
+            tools=[{"type": "function", "function": {"name": "submit"}}],
+            tool_choice={"type": "function", "function": {"name": "submit"}},
         )
         assert response.text() == "result"
 
