@@ -17,8 +17,8 @@ export async function POST(request: Request) {
   if (process.env.NUGEN_MOCK_MODE !== "false") {
     return NextResponse.json({ result: createMockResult(parsed.data), mode: "mock" });
   }
-  const model = process.env.NUGEN_ALIGNED_MODEL;
-  if (!model) return NextResponse.json({ error: "NUGEN_ALIGNED_MODEL is not configured" }, { status: 503 });
+  const alignedModel = process.env.NUGEN_ALIGNED_MODEL;
+  if (!alignedModel) return NextResponse.json({ error: "NUGEN_ALIGNED_MODEL is not configured" }, { status: 503 });
   try {
     const client = new NugenServerClient();
     const messages = buildArchitectureDecisionMessages(parsed.data);
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     let architectureUsage;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const completion = await client.chatComplete({
-        model,
+        model: alignedModel,
         messages,
         maxTokens: 20,
         temperature: 0.2,
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     let scopesUsage;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const completion = await client.chatComplete({
-        model,
+        model: alignedModel,
         messages: scopeMessages,
         maxTokens: 500,
         temperature: 0.2,
@@ -113,7 +113,7 @@ export async function POST(request: Request) {
     let documentReadinessUsage;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const completion = await client.chatComplete({
-        model,
+        model: alignedModel,
         messages: readinessMessages,
         maxTokens: 500,
         temperature: 0.2,
@@ -156,7 +156,7 @@ export async function POST(request: Request) {
     let benchmarkGenerationUsage;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const completion = await client.chatComplete({
-        model,
+        model: alignedModel,
         messages: benchmarkMessages,
         maxTokens: 900,
         temperature: 0.2,
@@ -197,7 +197,7 @@ export async function POST(request: Request) {
     const deliveryMessages = buildDeliveryPlanMessages(parsed.data, decision, scopes, documentReadiness, benchmarkGeneration);
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const completion = await client.chatComplete({
-        model,
+        model: alignedModel,
         messages: deliveryMessages,
         maxTokens: 1100,
         temperature: 0.2,
