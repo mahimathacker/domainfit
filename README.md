@@ -93,7 +93,8 @@ Mock mode demonstrates the comparison interaction but is never presented as perf
 Requirements: Node.js 20+, npm, and Python 3.11+.
 
 ```bash
-cp .env.example .env.local
+cp .env.example .env
+cp .env.example apps/web/.env.local
 python3 -m venv .venv
 .venv/bin/python -m pip install -e '.[dev]'
 npm install
@@ -121,6 +122,11 @@ NEXT_PUBLIC_APP_URL=
 ```
 
 `NUGEN_API_KEY` must never use a `NEXT_PUBLIC_` prefix.
+
+The Python workflow reads the repository-root `.env`. Next.js runs from `apps/web` and
+reads `apps/web/.env.local`. Keep the Nugen live-inference values synchronized between
+those two ignored local files, and restart the Next.js development server after changing
+them.
 
 ## Administrative commands
 
