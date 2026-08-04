@@ -16,6 +16,8 @@ from scripts.nugen.nugen_client import NugenServerError
 
 MAX_TOKENS = 1800
 TEMPERATURE = 0.1
+ISOLATION_MAX_TOKENS = 120
+ISOLATION_TEMPERATURE = 0.0
 SYSTEM_PROMPT = (
     "You are DomainFit, an architecture-planning assistant. Recommend the smallest "
     "architecture that meets the requirements. Do not recommend alignment by default. "
@@ -71,6 +73,191 @@ PRODUCTION_INPUT: dict[str, Any] = {
     "latency_requirements": "Interactive response under five seconds",
     "usage_requirements": "Pilot usage with fewer than 1,000 requests per month",
 }
+
+ISOLATION_PROMPTS = [
+    """Classify this use case.
+
+Return exactly one of:
+general_model
+alignment
+rag
+tools
+hybrid
+
+Use case:
+A CA firm receives financial documents through WhatsApp.
+The document checklist is stable, but client files and filing-year
+information change for every case. The system must organise files,
+detect missing documents, and send approved follow-ups.""",
+    """For the same use case below, return exactly three bullet points.
+
+Each bullet must contain fewer than 12 words:
+- What should be aligned
+- What should be retrieved at runtime
+- What should use deterministic tools
+
+Use case:
+A CA firm receives financial documents through WhatsApp. The document
+checklist is stable, while client files and filing-year information change
+for every case. The system organises files, detects missing documents, and
+sends approved follow-ups.""",
+    """Return only valid JSON in exactly this structure:
+
+{
+  "architecture": "hybrid",
+  "alignment_scope": ["one short item"],
+  "runtime_scope": ["one short item"],
+  "tool_scope": ["one short item"]
+}
+
+Use no repeated phrases. Keep every item under 10 words.
+
+Use case: A CA firm receives financial documents through WhatsApp. Its
+checklist is stable; client files and filing-year facts change per case. It
+organises files, detects missing documents, and sends approved follow-ups.""",
+]
+
+
+def isolation_errors(test_number: int, text: str) -> list[str]:
+    if not text:
+        return ["empty response"]
+    errors = ["repetition collapse"] if has_repetition_collapse(text) else []
+    if test_number == 1:
+        if text not in {"general_model", "alignment", "rag", "tools", "hybrid"}:
+            errors.append("response was not exactly one allowed label")
+    elif test_number == 2:
+        bullets = [line.strip() for line in text.splitlines() if line.strip()]
+        if len(bullets) != 3 or any(not line.startswith(("- ", "* ")) for line in bullets):
+            errors.append("response was not exactly three bullet points")
+        if any(len(line[2:].split()) >= 12 for line in bullets):
+            errors.append("a bullet contained 12 or more words")
+    else:
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError as exc:
+            errors.append(f"invalid JSON: {exc.msg}")
+        else:
+            expected_keys = {"architecture", "alignment_scope", "runtime_scope", "tool_scope"}
+            if not isinstance(payload, dict):
+                errors.append("JSON response was not an object")
+                return errors
+            if set(payload) != expected_keys:
+                errors.append("JSON keys did not exactly match the requested contract")
+            if payload.get("architecture") != "hybrid":
+                errors.append("architecture was not hybrid")
+            for field in ("alignment_scope", "runtime_scope", "tool_scope"):
+                value = payload.get(field)
+                if not isinstance(value, list) or len(value) != 1 or not isinstance(value[0], str):
+                    errors.append(f"{field} was not a one-item string array")
+                elif len(value[0].split()) >= 10:
+                    errors.append(f"{field} item contained 10 or more words")
+    return errors
+
+
+def interpret_isolation(records: list[dict[str, Any]]) -> str:
+    by_variant = {
+        variant: [record for record in records if record["variant"] == variant]
+        for variant in ("base", "aligned")
+    }
+    passed = {
+        variant: [not record["quality"]["errors"] for record in variant_records]
+        for variant, variant_records in by_variant.items()
+    }
+    if not passed["aligned"][0] or not passed["aligned"][1]:
+        if passed["base"][0] and passed["base"][1]:
+            return (
+                "Base handles simple output while aligned fails: strong evidence "
+                "alignment degraded the model."
+            )
+        return (
+            "Aligned fails simple label or natural-language output: the alignment "
+            "is not usable for this task."
+        )
+    if passed["aligned"][0] and passed["aligned"][1] and not passed["aligned"][2]:
+        return (
+            "Natural language works but tiny JSON fails: the structured-output "
+            "contract is the main issue."
+        )
+    if all(passed["aligned"]):
+        return (
+            "Tiny outputs pass: keep inference contracts small and test larger "
+            "sections separately."
+        )
+    if not any(passed["base"]) and not any(passed["aligned"]):
+        return (
+            "Both models fail: inspect the endpoint, deployment, prompt, and "
+            "generation parameters."
+        )
+    return (
+        "Results are mixed; inspect each saved response before drawing a "
+        "model-quality conclusion."
+    )
+
+
+def run_isolation_test() -> None:
+    state = state_store().load()
+    if not state.base_model_id or not state.deployed_model_id:
+        raise SystemExit("Base and deployed aligned model IDs are required")
+    records: list[dict[str, Any]] = []
+    try:
+        with client_from_env() as client:
+            calls = [
+                (variant, model_id, test_number, prompt)
+                for variant, model_id in (
+                    ("base", state.base_model_id),
+                    ("aligned", state.deployed_model_id),
+                )
+                for test_number, prompt in enumerate(ISOLATION_PROMPTS, start=1)
+            ]
+            for index, (variant, model_id, test_number, prompt) in enumerate(calls, start=1):
+                print(
+                    f"Isolation inference {index}/6 ({variant}, test {test_number})...",
+                    flush=True,
+                )
+                response = client.chat_complete(
+                    model_id,
+                    [{"role": "user", "content": prompt}],
+                    max_tokens=ISOLATION_MAX_TOKENS,
+                    temperature=ISOLATION_TEMPERATURE,
+                )
+                text = response.text().strip()
+                errors = isolation_errors(test_number, text)
+                records.append({
+                    "variant": variant,
+                    "test": test_number,
+                    "model": response.model,
+                    "prompt": prompt,
+                    "response": text,
+                    "usage": response.usage,
+                    "quality": {"passed": not errors, "errors": errors},
+                })
+    except (httpx.TimeoutException, httpx.NetworkError, NugenServerError) as exc:
+        raise SystemExit(f"Nugen isolation inference failed: {exc}") from None
+
+    interpretation = interpret_isolation(records)
+    output = ROOT / "artifacts" / "base-aligned-isolation.json"
+    write_json(
+        output,
+        {
+            "created_at": datetime.now(UTC).isoformat(),
+            "generation": {
+                "temperature": ISOLATION_TEMPERATURE,
+                "max_tokens": ISOLATION_MAX_TOKENS,
+                "stream": False,
+            },
+            "responses": records,
+            "interpretation": interpretation,
+        },
+    )
+    print(f"Saved isolation results to {output}")
+    for record in records:
+        status = (
+            "passed"
+            if record["quality"]["passed"]
+            else f"failed: {'; '.join(record['quality']['errors'])}"
+        )
+        print(f"{record['variant']} test {record['test']}: {status}")
+    print(f"Interpretation: {interpretation}")
 
 
 class FocusedDecision(BaseModel):
@@ -297,7 +484,11 @@ def run_focused_aligned_test() -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--focused-aligned", action="store_true")
+    parser.add_argument("--isolation", action="store_true")
     args = parser.parse_args()
+    if args.isolation:
+        run_isolation_test()
+        return
     if args.focused_aligned:
         run_focused_aligned_test()
         return

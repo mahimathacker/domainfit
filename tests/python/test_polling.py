@@ -36,6 +36,8 @@ parse_focused_tool_call = import_module(
     "scripts.nugen.09_test_inference"
 ).parse_focused_tool_call
 parse_focused_output = import_module("scripts.nugen.09_test_inference").parse_focused_output
+isolation_errors = import_module("scripts.nugen.09_test_inference").isolation_errors
+interpret_isolation = import_module("scripts.nugen.09_test_inference").interpret_isolation
 CompletionResponse = import_module("scripts.nugen.models").CompletionResponse
 
 
@@ -185,6 +187,41 @@ def test_repetition_collapse_detection() -> None:
 
     assert has_repetition_collapse(repeated)
     assert not has_repetition_collapse(varied)
+
+
+def test_isolation_contracts_validate_small_outputs() -> None:
+    assert isolation_errors(1, "hybrid") == []
+    assert isolation_errors(
+        2,
+        "- Stable checklist\n- Current filing-year facts\n- Approved follow-up tools",
+    ) == []
+
+
+def test_isolation_json_contract_reports_scalar_without_crashing() -> None:
+    assert isolation_errors(3, "true") == ["JSON response was not an object"]
+    assert isolation_errors(
+        3,
+        json.dumps(
+            {
+                "architecture": "hybrid",
+                "alignment_scope": ["Stable document checklist"],
+                "runtime_scope": ["Current client filing facts"],
+                "tool_scope": ["Approved follow-up delivery"],
+            }
+        ),
+    ) == []
+
+
+def test_isolation_interpretation_detects_alignment_degradation() -> None:
+    records = [
+        {"variant": "base", "quality": {"errors": []}},
+        {"variant": "base", "quality": {"errors": []}},
+        {"variant": "base", "quality": {"errors": []}},
+        {"variant": "aligned", "quality": {"errors": ["repetition collapse"]}},
+        {"variant": "aligned", "quality": {"errors": ["repetition collapse"]}},
+        {"variant": "aligned", "quality": {"errors": ["invalid JSON"]}},
+    ]
+    assert "alignment degraded" in interpret_isolation(records)
 
 
 def test_production_diagnostic_rejects_non_json() -> None:
