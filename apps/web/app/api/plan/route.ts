@@ -3,6 +3,7 @@ import { createMockResult, createModelAssistedResult } from "@/lib/domainfit/moc
 import { plannerSchema } from "@/lib/domainfit/schemas";
 import { ArchitectureDecisionError, architectureDecisionTool, buildArchitectureDecisionMessages, parseArchitectureDecision } from "@/lib/domainfit/architecture-decision.server";
 import { ArchitectureScopesError, architectureScopesTool, buildArchitectureScopesMessages, parseArchitectureScopes } from "@/lib/domainfit/architecture-scopes.server";
+import { DocumentReadinessError, buildDocumentReadinessMessages, documentReadinessTool, parseDocumentReadiness } from "@/lib/domainfit/document-readiness.server";
 import { completionText, NugenServerClient, NugenServerError } from "@/lib/nugen/client.server";
 
 export async function POST(request: Request) {
@@ -63,6 +64,8 @@ export async function POST(request: Request) {
     if (!decision) throw new ArchitectureDecisionError("Nugen did not produce an architecture decision");
 
     const scopeMessages = buildArchitectureScopesMessages(parsed.data, decision);
+    let scopes;
+    let scopesUsage;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const completion = await client.chatComplete({
         model,
@@ -73,13 +76,9 @@ export async function POST(request: Request) {
         toolChoice: { type: "function", function: { name: "submit_architecture_scopes" } },
       });
       try {
-        const scopes = parseArchitectureScopes(completion);
-        return NextResponse.json({
-          result: createModelAssistedResult(parsed.data, decision, scopes),
-          decision,
-          mode: "live",
-          usage: { architecture: architectureUsage, scopes: completion.usage },
-        });
+        scopes = parseArchitectureScopes(completion);
+        scopesUsage = completion.usage;
+        break;
       } catch (error) {
         if (!(error instanceof ArchitectureScopesError)) throw error;
         diagnostics.push({
@@ -102,6 +101,51 @@ export async function POST(request: Request) {
         scopeMessages.push(
           { role: "assistant", content: completionText(completion) },
           { role: "user", content: "Return one complete JSON object with exactly alignment_scope, runtime_retrieval_scope, tool_scope, and deterministic_logic. Each value must be an array of short strings." },
+        );
+      }
+    }
+    if (!scopes) throw new ArchitectureScopesError("Nugen did not produce architecture scopes");
+
+    const readinessMessages = buildDocumentReadinessMessages(parsed.data, decision, scopes);
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const completion = await client.chatComplete({
+        model,
+        messages: readinessMessages,
+        maxTokens: 500,
+        temperature: 0.2,
+        tools: [documentReadinessTool],
+        toolChoice: { type: "function", function: { name: "submit_document_readiness" } },
+      });
+      try {
+        const documentReadiness = parseDocumentReadiness(completion);
+        return NextResponse.json({
+          result: createModelAssistedResult(parsed.data, decision, scopes, documentReadiness),
+          decision,
+          mode: "live",
+          usage: { architecture: architectureUsage, scopes: scopesUsage, documentReadiness: completion.usage },
+        });
+      } catch (error) {
+        if (!(error instanceof DocumentReadinessError)) throw error;
+        diagnostics.push({
+          task: "document_readiness",
+          attempt: attempt + 1,
+          content: completionText(completion).slice(0, 1500),
+          toolCalls: completion.choices[0]?.message?.tool_calls ?? null,
+          error: error.message,
+        });
+        if (attempt === 1) {
+          return NextResponse.json(
+            {
+              error: "The aligned model returned invalid document readiness after one repair attempt",
+              details: error.message,
+              ...(process.env.NODE_ENV !== "production" ? { diagnostics } : {}),
+            },
+            { status: 502 },
+          );
+        }
+        readinessMessages.push(
+          { role: "assistant", content: completionText(completion) },
+          { role: "user", content: "Return one complete JSON object with exactly score, strengths, gaps, and recommended_documents. Score must be an integer from 0 to 100; the other values must be arrays of short strings." },
         );
       }
     }

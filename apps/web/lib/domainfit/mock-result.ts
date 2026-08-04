@@ -1,5 +1,6 @@
 import type { DomainFitResult, PlannerInput } from "./schemas";
 import type { ArchitectureScopes } from "./architecture-scopes.server";
+import type { DocumentReadiness } from "./document-readiness.server";
 
 export function createMockResult(input: PlannerInput): DomainFitResult {
   const needsRuntime = input.citations_required || input.changing_facts.length > 20;
@@ -15,9 +16,14 @@ export function createModelAssistedResult(
   input: PlannerInput,
   decision: { recommended_architecture: DomainFitResult["recommended_architecture"]; reason: string },
   scopes?: ArchitectureScopes,
+  documentReadiness?: DocumentReadiness,
 ): DomainFitResult {
   const result = createResult(input, decision.recommended_architecture, decision.reason, 0.8, false);
-  return scopes ? { ...result, ...scopes } : result;
+  return {
+    ...result,
+    ...(scopes ?? {}),
+    ...(documentReadiness ? { document_readiness: documentReadiness } : {}),
+  };
 }
 
 function createResult(input: PlannerInput, recommended: DomainFitResult["recommended_architecture"], summary: string, confidence: number, mock: boolean): DomainFitResult {
