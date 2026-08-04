@@ -16,17 +16,22 @@ describe("parseArchitectureDecision", () => {
     expect(messages.at(-1)?.content).toContain("private_data_or_external_actions=true");
   });
 
-  it("accepts validated JSON content when Nugen omits the tool call", () => {
-    const decision = parseArchitectureDecision({ choices: [{ message: { role: "assistant", content: '{"recommended_architecture":"hybrid","reason":"The scenario combines stable behavior, current evidence, and actions."}', tool_calls: null } }] });
+  it("accepts a validated label when Nugen omits the tool call", () => {
+    const decision = parseArchitectureDecision({ choices: [{ message: { role: "assistant", content: "hybrid", tool_calls: null } }] }, defaultPlannerInput);
     expect(decision.recommended_architecture).toBe("hybrid");
   });
 
+  it("recovers a label from the legacy response even when its reason is truncated", () => {
+    const decision = parseArchitectureDecision({ choices: [{ message: { content: '{"recommended_architecture":"general_model","reason":"repeating' } }] }, defaultPlannerInput);
+    expect(decision.recommended_architecture).toBe("general_model");
+  });
+
   it("accepts validated function arguments", () => {
-    const decision = parseArchitectureDecision({ choices: [{ message: { role: "assistant", content: null, tool_calls: [{ function: { name: "submit_domainfit_decision", arguments: '{"recommended_architecture":"tools","reason":"Private data and actions require authenticated tools."}' } }] } }] });
+    const decision = parseArchitectureDecision({ choices: [{ message: { role: "assistant", content: null, tool_calls: [{ function: { name: "submit_domainfit_decision", arguments: '{"recommended_architecture":"tools"}' } }] } }] }, defaultPlannerInput);
     expect(decision.recommended_architecture).toBe("tools");
   });
 
   it("rejects unsupported labels", () => {
-    expect(() => parseArchitectureDecision({ choices: [{ message: { content: '{"recommended_architecture":"always-align","reason":"This label is unsupported."}' } }] })).toThrow(ArchitectureDecisionError);
+    expect(() => parseArchitectureDecision({ choices: [{ message: { content: "always-align" } }] }, defaultPlannerInput)).toThrow(ArchitectureDecisionError);
   });
 });

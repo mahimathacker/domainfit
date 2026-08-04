@@ -8,7 +8,7 @@ describe("architecture scopes", () => {
       { ...defaultPlannerInput, use_case: "Triage developer API support tickets", users: "Support engineers", domain: "Developer infrastructure" },
       { recommended_architecture: "hybrid", reason: "The use case combines stable behavior and current evidence." },
     );
-    expect(messages[1].content).toContain("Triage developer API support tickets");
+    expect(messages.at(-1)?.content).toContain("Triage developer API support tickets");
   });
 
   it("accepts validated scope JSON when tool calling is omitted", () => {

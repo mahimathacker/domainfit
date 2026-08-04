@@ -52,6 +52,27 @@ export function buildArchitectureScopesMessages(
     {
       role: "user" as const,
       content: JSON.stringify({
+        architecture: "hybrid",
+        use_case: "Triage developer API support tickets using current documentation and private account status",
+        stable_behaviour: "Apply the approved ticket taxonomy and escalation rules",
+        changing_facts: "API documentation and incident status",
+        citations_required: true,
+        live_private_data: true,
+        external_actions: false,
+      }),
+    },
+    {
+      role: "assistant" as const,
+      content: JSON.stringify({
+        alignment_scope: ["Apply the approved developer-support taxonomy", "Follow ticket escalation rules consistently"],
+        runtime_retrieval_scope: ["Retrieve current API documentation", "Cite current incident-status sources"],
+        tool_scope: ["Read authenticated customer account status"],
+        deterministic_logic: ["Validate ticket and account identifiers", "Enforce support-agent permissions"],
+      }),
+    },
+    {
+      role: "user" as const,
+      content: JSON.stringify({
         architecture: decision.recommended_architecture,
         use_case: input.use_case,
         users: input.users,

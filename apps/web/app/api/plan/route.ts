@@ -29,13 +29,13 @@ export async function POST(request: Request) {
       const completion = await client.chatComplete({
         model,
         messages,
-        maxTokens: 150,
+        maxTokens: 20,
         temperature: 0.2,
         tools: [architectureDecisionTool],
         toolChoice: { type: "function", function: { name: "submit_domainfit_decision" } },
       });
       try {
-        decision = parseArchitectureDecision(completion);
+        decision = parseArchitectureDecision(completion, parsed.data);
         architectureUsage = completion.usage;
         break;
       } catch (error) {
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
         }
         messages.push(
           { role: "assistant", content: completionText(completion) },
-          { role: "user", content: "Your previous response was invalid. Return one complete JSON object with exactly recommended_architecture and reason. Use only an allowed architecture label." },
+          { role: "user", content: "Invalid. Reply with one label only: general_model, alignment, rag, tools, or hybrid." },
         );
       }
     }
@@ -100,10 +100,10 @@ export async function POST(request: Request) {
             { status: 502 },
           );
         }
-        scopeMessages.push(
-          { role: "assistant", content: completionText(completion) },
-          { role: "user", content: "Return one complete JSON object with exactly alignment_scope, runtime_retrieval_scope, tool_scope, and deterministic_logic. Each value must be an array of short strings." },
-        );
+        scopeMessages.push({
+          role: "user",
+          content: '{"alignment_scope":["use-case-specific responsibility"],"runtime_retrieval_scope":[],"tool_scope":[],"deterministic_logic":["use-case-specific validation"]} Return only this JSON shape, replacing the example content for the latest use case.',
+        });
       }
     }
     if (!scopes) throw new ArchitectureScopesError("Nugen did not produce architecture scopes");
