@@ -50,6 +50,52 @@ export class NugenServerClient {
       clearTimeout(timeout);
     }
   }
+
+  async chatComplete(options: {
+    model: string;
+    messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+    maxTokens?: number;
+    temperature?: number;
+    tools?: Array<Record<string, unknown>>;
+    toolChoice?: string | Record<string, unknown>;
+  }): Promise<NugenCompletion> {
+    return this.requestCompletion("/api/v3/inference/chat/completions", {
+      model: options.model,
+      messages: options.messages,
+      max_tokens: options.maxTokens ?? 150,
+      temperature: options.temperature ?? 0.2,
+      stream: false,
+      ...(options.tools ? { tools: options.tools } : {}),
+      ...(options.toolChoice ? { tool_choice: options.toolChoice } : {}),
+    });
+  }
+
+  private async requestCompletion(path: string, body: Record<string, unknown>): Promise<NugenCompletion> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 180_000);
+    try {
+      const response = await fetch(`${this.baseUrl}${path}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      const payload: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        const detail = payload && typeof payload === "object" && "detail" in payload ? JSON.stringify(payload.detail) : `HTTP ${response.status}`;
+        throw new NugenServerError(`Nugen request failed: ${detail}`, response.status);
+      }
+      if (!isCompletion(payload)) throw new NugenServerError("Nugen returned an unexpected completion response");
+      return payload;
+    } catch (error) {
+      if (error instanceof NugenServerError) throw error;
+      if (error instanceof Error && error.name === "AbortError") throw new NugenServerError("Nugen request timed out");
+      throw new NugenServerError("Unable to reach Nugen");
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
 }
 
 export function completionText(completion: NugenCompletion): string {
@@ -60,4 +106,3 @@ export function completionText(completion: NugenCompletion): string {
 function isCompletion(value: unknown): value is NugenCompletion {
   return Boolean(value && typeof value === "object" && "choices" in value && Array.isArray(value.choices));
 }
-

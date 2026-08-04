@@ -10,7 +10,13 @@ export interface NugenCompletion {
   model?: string;
   choices: Array<{
     text?: string;
-    message?: { content?: string; role?: string };
+    message?: {
+      content?: string | null;
+      role?: string;
+      tool_calls?: Array<{
+        function?: { name?: string; arguments?: string | Record<string, unknown> };
+      }> | null;
+    };
   }>;
   usage?: NugenUsage;
 }
@@ -22,4 +28,3 @@ export interface ModelResponse {
   usage?: NugenUsage;
   mode: "mock" | "live";
 }
-

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createMockResult } from "@/lib/domainfit/mock-result";
+import { createMockResult, createModelAssistedResult } from "@/lib/domainfit/mock-result";
 import { defaultPlannerInput, domainFitResultSchema } from "@/lib/domainfit/schemas";
 
 describe("domainFitResultSchema", () => {
@@ -26,5 +26,11 @@ describe("domainFitResultSchema", () => {
     });
     expect(result.recommended_architecture).toBe("hybrid");
   });
-});
 
+  it("constructs a complete plan from a focused aligned decision", () => {
+    const input = { ...defaultPlannerInput, use_case: "A valid support planner", users: "Support", domain: "Support" };
+    const result = createModelAssistedResult(input, { recommended_architecture: "hybrid", reason: "The use case combines stable behavior, current evidence, and tools." });
+    expect(domainFitResultSchema.parse(result).recommended_architecture).toBe("hybrid");
+    expect(result.summary).toContain("combines stable behavior");
+  });
+});
