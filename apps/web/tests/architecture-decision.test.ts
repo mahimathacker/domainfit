@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseArchitectureDecision } from "@/lib/domainfit/architecture-decision.server";
+import { ArchitectureDecisionError, parseArchitectureDecision } from "@/lib/domainfit/architecture-decision.server";
 
 describe("parseArchitectureDecision", () => {
   it("accepts validated JSON content when Nugen omits the tool call", () => {
@@ -13,6 +13,6 @@ describe("parseArchitectureDecision", () => {
   });
 
   it("rejects unsupported labels", () => {
-    expect(() => parseArchitectureDecision({ choices: [{ message: { content: '{"recommended_architecture":"always-align","reason":"This label is unsupported."}' } }] })).toThrow();
+    expect(() => parseArchitectureDecision({ choices: [{ message: { content: '{"recommended_architecture":"always-align","reason":"This label is unsupported."}' } }] })).toThrow(ArchitectureDecisionError);
   });
 });

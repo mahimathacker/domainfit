@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { createMockResult, createModelAssistedResult } from "@/lib/domainfit/mock-result";
 import { plannerSchema } from "@/lib/domainfit/schemas";
-import { architectureDecisionTool, buildArchitectureDecisionMessages, parseArchitectureDecision } from "@/lib/domainfit/architecture-decision.server";
-import { NugenServerClient, NugenServerError } from "@/lib/nugen/client.server";
+import { ArchitectureDecisionError, architectureDecisionTool, buildArchitectureDecisionMessages, parseArchitectureDecision } from "@/lib/domainfit/architecture-decision.server";
+import { completionText, NugenServerClient, NugenServerError } from "@/lib/nugen/client.server";
 
 export async function POST(request: Request) {
   const body: unknown = await request.json().catch(() => null);
@@ -17,16 +17,33 @@ export async function POST(request: Request) {
   if (!model) return NextResponse.json({ error: "NUGEN_ALIGNED_MODEL is not configured" }, { status: 503 });
   try {
     const client = new NugenServerClient();
-    const completion = await client.chatComplete({
-      model,
-      messages: buildArchitectureDecisionMessages(parsed.data),
-      maxTokens: 150,
-      temperature: 0.2,
-      tools: [architectureDecisionTool],
-      toolChoice: { type: "function", function: { name: "submit_domainfit_decision" } },
-    });
-    const decision = parseArchitectureDecision(completion);
-    return NextResponse.json({ result: createModelAssistedResult(parsed.data, decision), decision, mode: "live", usage: completion.usage });
+    const messages = buildArchitectureDecisionMessages(parsed.data);
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const completion = await client.chatComplete({
+        model,
+        messages,
+        maxTokens: 150,
+        temperature: 0.2,
+        tools: [architectureDecisionTool],
+        toolChoice: { type: "function", function: { name: "submit_domainfit_decision" } },
+      });
+      try {
+        const decision = parseArchitectureDecision(completion);
+        return NextResponse.json({ result: createModelAssistedResult(parsed.data, decision), decision, mode: "live", usage: completion.usage });
+      } catch (error) {
+        if (!(error instanceof ArchitectureDecisionError)) throw error;
+        if (attempt === 1) {
+          return NextResponse.json(
+            { error: "The aligned model returned an invalid architecture decision after one repair attempt", details: error.message },
+            { status: 502 },
+          );
+        }
+        messages.push(
+          { role: "assistant", content: completionText(completion) },
+          { role: "user", content: "Your previous response was invalid. Return one complete JSON object with exactly recommended_architecture and reason. Use only an allowed architecture label." },
+        );
+      }
+    }
   } catch (error) {
     const message = error instanceof NugenServerError ? error.message : "Unable to generate the plan";
     const status = error instanceof NugenServerError && error.status && error.status < 500 ? 502 : 503;

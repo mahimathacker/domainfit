@@ -9,6 +9,13 @@ export const architectureDecisionSchema = z.object({
 
 export type ArchitectureDecision = z.infer<typeof architectureDecisionSchema>;
 
+export class ArchitectureDecisionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ArchitectureDecisionError";
+  }
+}
+
 export const architectureDecisionTool = {
   type: "function",
   function: {
@@ -48,15 +55,20 @@ export function buildArchitectureDecisionMessages(input: PlannerInput) {
 }
 
 export function parseArchitectureDecision(completion: NugenCompletion): ArchitectureDecision {
-  const message = completion.choices[0]?.message;
-  const call = message?.tool_calls?.[0]?.function;
-  if (call?.name === "submit_domainfit_decision") {
-    const argumentsValue = typeof call.arguments === "string" ? JSON.parse(call.arguments) : call.arguments;
-    return architectureDecisionSchema.parse(argumentsValue);
+  try {
+    const message = completion.choices[0]?.message;
+    const call = message?.tool_calls?.[0]?.function;
+    if (call?.name === "submit_domainfit_decision") {
+      const argumentsValue = typeof call.arguments === "string" ? JSON.parse(call.arguments) : call.arguments;
+      return architectureDecisionSchema.parse(argumentsValue);
+    }
+    if (!message?.content) throw new Error("Nugen did not return an architecture decision");
+    const start = message.content.indexOf("{");
+    const end = message.content.lastIndexOf("}");
+    if (start < 0 || end < start) throw new Error("Nugen returned incomplete decision JSON");
+    return architectureDecisionSchema.parse(JSON.parse(message.content.slice(start, end + 1)));
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "unknown decision format";
+    throw new ArchitectureDecisionError(detail);
   }
-  if (!message?.content) throw new Error("Nugen did not return an architecture decision");
-  const start = message.content.indexOf("{");
-  const end = message.content.lastIndexOf("}");
-  if (start < 0 || end < start) throw new Error("Nugen returned incomplete decision JSON");
-  return architectureDecisionSchema.parse(JSON.parse(message.content.slice(start, end + 1)));
 }
