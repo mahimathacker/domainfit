@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createMockResult, createModelAssistedResult } from "@/lib/domainfit/mock-result";
 import { plannerSchema } from "@/lib/domainfit/schemas";
 import { ArchitectureDecisionError, architectureDecisionTool, buildArchitectureDecisionMessages, parseArchitectureDecision } from "@/lib/domainfit/architecture-decision.server";
+import { ArchitectureScopesError, architectureScopesTool, buildArchitectureScopesMessages, parseArchitectureScopes } from "@/lib/domainfit/architecture-scopes.server";
 import { completionText, NugenServerClient, NugenServerError } from "@/lib/nugen/client.server";
 
 export async function POST(request: Request) {
@@ -18,6 +19,9 @@ export async function POST(request: Request) {
   try {
     const client = new NugenServerClient();
     const messages = buildArchitectureDecisionMessages(parsed.data);
+    const diagnostics: Array<{ task: string; attempt: number; content: string; toolCalls: unknown; error: string }> = [];
+    let decision;
+    let architectureUsage;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const completion = await client.chatComplete({
         model,
@@ -28,19 +32,76 @@ export async function POST(request: Request) {
         toolChoice: { type: "function", function: { name: "submit_domainfit_decision" } },
       });
       try {
-        const decision = parseArchitectureDecision(completion);
-        return NextResponse.json({ result: createModelAssistedResult(parsed.data, decision), decision, mode: "live", usage: completion.usage });
+        decision = parseArchitectureDecision(completion);
+        architectureUsage = completion.usage;
+        break;
       } catch (error) {
         if (!(error instanceof ArchitectureDecisionError)) throw error;
+        diagnostics.push({
+          task: "architecture_decision",
+          attempt: attempt + 1,
+          content: completionText(completion).slice(0, 1000),
+          toolCalls: completion.choices[0]?.message?.tool_calls ?? null,
+          error: error.message,
+        });
         if (attempt === 1) {
           return NextResponse.json(
-            { error: "The aligned model returned an invalid architecture decision after one repair attempt", details: error.message },
+            {
+              error: "The aligned model returned an invalid architecture decision after one repair attempt",
+              details: error.message,
+              ...(process.env.NODE_ENV !== "production" ? { diagnostics } : {}),
+            },
             { status: 502 },
           );
         }
         messages.push(
           { role: "assistant", content: completionText(completion) },
           { role: "user", content: "Your previous response was invalid. Return one complete JSON object with exactly recommended_architecture and reason. Use only an allowed architecture label." },
+        );
+      }
+    }
+    if (!decision) throw new ArchitectureDecisionError("Nugen did not produce an architecture decision");
+
+    const scopeMessages = buildArchitectureScopesMessages(parsed.data, decision);
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const completion = await client.chatComplete({
+        model,
+        messages: scopeMessages,
+        maxTokens: 500,
+        temperature: 0.2,
+        tools: [architectureScopesTool],
+        toolChoice: { type: "function", function: { name: "submit_architecture_scopes" } },
+      });
+      try {
+        const scopes = parseArchitectureScopes(completion);
+        return NextResponse.json({
+          result: createModelAssistedResult(parsed.data, decision, scopes),
+          decision,
+          mode: "live",
+          usage: { architecture: architectureUsage, scopes: completion.usage },
+        });
+      } catch (error) {
+        if (!(error instanceof ArchitectureScopesError)) throw error;
+        diagnostics.push({
+          task: "architecture_scopes",
+          attempt: attempt + 1,
+          content: completionText(completion).slice(0, 1500),
+          toolCalls: completion.choices[0]?.message?.tool_calls ?? null,
+          error: error.message,
+        });
+        if (attempt === 1) {
+          return NextResponse.json(
+            {
+              error: "The aligned model returned invalid architecture scopes after one repair attempt",
+              details: error.message,
+              ...(process.env.NODE_ENV !== "production" ? { diagnostics } : {}),
+            },
+            { status: 502 },
+          );
+        }
+        scopeMessages.push(
+          { role: "assistant", content: completionText(completion) },
+          { role: "user", content: "Return one complete JSON object with exactly alignment_scope, runtime_retrieval_scope, tool_scope, and deterministic_logic. Each value must be an array of short strings." },
         );
       }
     }
