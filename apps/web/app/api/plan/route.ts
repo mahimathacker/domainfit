@@ -5,6 +5,7 @@ import { ArchitectureDecisionError, architectureDecisionTool, buildArchitectureD
 import { ArchitectureScopesError, architectureScopesTool, buildArchitectureScopesMessages, parseArchitectureScopes } from "@/lib/domainfit/architecture-scopes.server";
 import { DocumentReadinessError, buildDocumentReadinessMessages, documentReadinessTool, parseDocumentReadiness } from "@/lib/domainfit/document-readiness.server";
 import { BenchmarkGenerationError, benchmarkGenerationTool, buildBenchmarkGenerationMessages, parseBenchmarkGeneration } from "@/lib/domainfit/benchmark-generation.server";
+import { buildDeliveryPlanMessages, DeliveryPlanError, deliveryPlanTool, parseDeliveryPlan } from "@/lib/domainfit/delivery-plan.server";
 import { completionText, NugenServerClient, NugenServerError } from "@/lib/nugen/client.server";
 
 export async function POST(request: Request) {
@@ -151,6 +152,8 @@ export async function POST(request: Request) {
     if (!documentReadiness) throw new DocumentReadinessError("Nugen did not produce document readiness");
 
     const benchmarkMessages = buildBenchmarkGenerationMessages(parsed.data, decision, scopes, documentReadiness);
+    let benchmarkGeneration;
+    let benchmarkGenerationUsage;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const completion = await client.chatComplete({
         model,
@@ -161,18 +164,9 @@ export async function POST(request: Request) {
         toolChoice: { type: "function", function: { name: "submit_benchmark_plan" } },
       });
       try {
-        const benchmarkGeneration = parseBenchmarkGeneration(completion);
-        return NextResponse.json({
-          result: createModelAssistedResult(parsed.data, decision, scopes, documentReadiness, benchmarkGeneration),
-          decision,
-          mode: "live",
-          usage: {
-            architecture: architectureUsage,
-            scopes: scopesUsage,
-            documentReadiness: documentReadinessUsage,
-            benchmarkGeneration: completion.usage,
-          },
-        });
+        benchmarkGeneration = parseBenchmarkGeneration(completion);
+        benchmarkGenerationUsage = completion.usage;
+        break;
       } catch (error) {
         if (!(error instanceof BenchmarkGenerationError)) throw error;
         diagnostics.push({
@@ -195,6 +189,57 @@ export async function POST(request: Request) {
         benchmarkMessages.push(
           { role: "assistant", content: completionText(completion) },
           { role: "user", content: "Return one complete JSON object containing benchmark_plan with exactly three items. Every item requires category, question, expected_answer, and rationale strings." },
+        );
+      }
+    }
+    if (!benchmarkGeneration) throw new BenchmarkGenerationError("Nugen did not produce a benchmark plan");
+
+    const deliveryMessages = buildDeliveryPlanMessages(parsed.data, decision, scopes, documentReadiness, benchmarkGeneration);
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const completion = await client.chatComplete({
+        model,
+        messages: deliveryMessages,
+        maxTokens: 1100,
+        temperature: 0.2,
+        tools: [deliveryPlanTool],
+        toolChoice: { type: "function", function: { name: "submit_delivery_plan" } },
+      });
+      try {
+        const deliveryPlan = parseDeliveryPlan(completion);
+        return NextResponse.json({
+          result: createModelAssistedResult(parsed.data, decision, scopes, documentReadiness, benchmarkGeneration, deliveryPlan),
+          decision,
+          mode: "live",
+          usage: {
+            architecture: architectureUsage,
+            scopes: scopesUsage,
+            documentReadiness: documentReadinessUsage,
+            benchmarkGeneration: benchmarkGenerationUsage,
+            deliveryPlan: completion.usage,
+          },
+        });
+      } catch (error) {
+        if (!(error instanceof DeliveryPlanError)) throw error;
+        diagnostics.push({
+          task: "delivery_plan",
+          attempt: attempt + 1,
+          content: completionText(completion).slice(0, 2500),
+          toolCalls: completion.choices[0]?.message?.tool_calls ?? null,
+          error: error.message,
+        });
+        if (attempt === 1) {
+          return NextResponse.json(
+            {
+              error: "The aligned model returned an invalid delivery plan after one repair attempt",
+              details: error.message,
+              ...(process.env.NODE_ENV !== "production" ? { diagnostics } : {}),
+            },
+            { status: 502 },
+          );
+        }
+        deliveryMessages.push(
+          { role: "assistant", content: completionText(completion) },
+          { role: "user", content: "Return one complete JSON object with assumptions, decision_factors, implementation_steps, human_review, risks, and limitations. Follow the requested array sizes and object shapes exactly." },
         );
       }
     }
