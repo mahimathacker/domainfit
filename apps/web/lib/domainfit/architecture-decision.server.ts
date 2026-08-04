@@ -34,10 +34,18 @@ export const architectureDecisionTool = {
 };
 
 export function buildArchitectureDecisionMessages(input: PlannerInput) {
+  const signals = {
+    stable_specialist_behavior: input.stable_behaviour.trim().length > 0,
+    changing_or_cited_evidence:
+      input.citations_required || input.changing_facts.trim().length > 0,
+    private_data_or_external_actions: input.live_private_data || input.external_actions,
+    high_impact_or_human_approval:
+      input.human_approval || ["high", "critical"].includes(input.mistake_impact),
+  };
   return [
     {
       role: "system" as const,
-      content: "You are DomainFit. Choose exactly one architecture from general_model, alignment, rag, tools, or hybrid. Stable specialist behavior belongs to alignment; changing cited evidence to rag; private data and actions to tools; combinations to hybrid. Return only valid JSON with exactly recommended_architecture and reason.",
+      content: "You are DomainFit. Choose exactly one architecture from general_model, alignment, rag, tools, or hybrid. Use general_model when all specialist signals are false. Use alignment for stable specialist behavior only. Use rag for changing or cited evidence only. Use tools for private data or external actions only. Use hybrid when two or more of alignment, rag, and tools are required. Return only valid JSON with exactly recommended_architecture and reason.",
     },
     {
       role: "user" as const,
@@ -49,7 +57,15 @@ export function buildArchitectureDecisionMessages(input: PlannerInput) {
     },
     {
       role: "user" as const,
-      content: `Analyze this planner input and return the same two-key JSON shape:\n${JSON.stringify(input)}`,
+      content: "Signals: stable_specialist_behavior=true; changing_or_cited_evidence=true; private_data_or_external_actions=true; high_impact_or_human_approval=true.",
+    },
+    {
+      role: "assistant" as const,
+      content: '{"recommended_architecture":"hybrid","reason":"Stable specialist behavior, current evidence, and controlled private actions require multiple architecture layers."}',
+    },
+    {
+      role: "user" as const,
+      content: `Choose the architecture for these signals and return the same two-key JSON shape: ${Object.entries(signals).map(([key, value]) => `${key}=${value}`).join("; ")}.`,
     },
   ];
 }
