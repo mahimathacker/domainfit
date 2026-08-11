@@ -53,8 +53,10 @@ describe("domainFitResultSchema", () => {
     });
     expect(result.alignment_scope.join(" ")).toContain("approved document checklist");
     expect(result.runtime_retrieval_scope.join(" ")).toContain("filing-year information");
-    expect(result.tool_scope.join(" ")).toContain("approved external actions");
+    expect(result.tool_scope.join(" ")).toContain("staff approval");
     expect(result.deterministic_logic).toContain("Require explicit approval before external actions");
-    expect(result.benchmark_plan[0].question).toContain("Organise CA client documents");
+    expect(result.benchmark_plan[0].question).toContain("CA document operations case");
+    expect(result.benchmark_plan[1].question).not.toContain("request to an assistant");
+    expect(result.implementation_steps[0]).toBe("Define acceptance criteria and required inputs for the CA document operations workflow.");
   });
 });
