@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, ArrowRight, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { defaultPlannerInput, domainFitResultSchema, plannerSchema, type PlannerInput } from "@/lib/domainfit/schemas";
 
@@ -64,16 +64,7 @@ export function ArchitecturePlannerForm({ inferenceMode }: { inferenceMode: "moc
     }
   }
 
-  function handleFormSubmit(event: FormEvent<HTMLFormElement>) {
-    if (step < steps.length - 1) {
-      event.preventDefault();
-      void next();
-      return;
-    }
-    void form.handleSubmit(submit)(event);
-  }
-
-  return <form onSubmit={handleFormSubmit} className="card mt-10 overflow-hidden" noValidate>
+  return <form onSubmit={event => event.preventDefault()} className="card mt-10 overflow-hidden" noValidate>
     <div className="border-b border-line px-6 py-5 sm:px-8"><div className="flex items-center justify-between text-sm"><span className="font-semibold">Step {step + 1} of {steps.length}</span><span className="flex items-center gap-3"><span className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase ${inferenceMode === "live" ? "bg-lime text-ink" : "bg-line text-ink/60"}`}>{inferenceMode === "live" ? "Live Nugen" : "Mock mode"}</span><span className="text-ink/50">{steps[step]}</span></span></div><div className="mt-4 h-1.5 overflow-hidden rounded-full bg-line"><div className="h-full rounded-full bg-moss transition-all" style={{ width: `${((step + 1) / steps.length) * 100}%` }} /></div></div>
     <div className="min-h-[31rem] p-6 sm:p-8">
       {step === 0 && <fieldset className="space-y-6"><legend className="text-2xl font-semibold">Start with the job to be done</legend><TextArea label="What are you building?" hint="Example: An assistant that triages developer support tickets." error={form.formState.errors.use_case?.message} {...form.register("use_case")} /><TextInput label="Who will use it?" hint="Example: Support engineers and API customers" error={form.formState.errors.users?.message} {...form.register("users")} /><TextInput label="What domain does it operate in?" hint="Example: Developer infrastructure" error={form.formState.errors.domain?.message} {...form.register("domain")} /><TextArea label="What behaviour should remain consistent?" hint="Include tone, formats, decision patterns, and escalation rules." {...form.register("stable_behaviour")} /></fieldset>}
@@ -82,7 +73,7 @@ export function ArchitecturePlannerForm({ inferenceMode }: { inferenceMode: "moc
       {step === 3 && <fieldset className="space-y-6"><legend className="text-2xl font-semibold">Operating requirements</legend><TextArea label="Expected latency" hint="Example: Interactive, under five seconds at p95." {...form.register("latency_requirements")} /><TextArea label="Expected usage" hint="Example: 5,000 requests per day with weekday peaks." {...form.register("usage_requirements")} /><div className="rounded-xl border border-moss/20 bg-moss/5 p-5"><p className="font-semibold">Ready to create your plan</p><p className="mt-2 text-sm leading-6 text-ink/60">{inferenceMode === "live" ? "Your requirements will be sent securely to the deployed Nugen aligned model for an architecture decision." : "Mock mode produces a deterministic schema-valid result without calling Nugen."}</p></div></fieldset>}
       {submitError && <div role="alert" className="mt-6 whitespace-pre-wrap rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-800">{submitError}</div>}
     </div>
-    <div className="flex items-center justify-between border-t border-line px-6 py-5 sm:px-8"><button type="button" className="button-secondary" onClick={() => setStep(value => Math.max(0, value - 1))} disabled={step === 0}><ArrowLeft size={16} /> Back</button>{step < steps.length - 1 ? <button type="button" className="button-primary" onClick={next}>Continue <ArrowRight size={16} /></button> : <button type="submit" className="button-primary" disabled={isSubmitting}>{isSubmitting ? <><LoaderCircle className="animate-spin" size={16} /> Building plan</> : <>Build my plan <ArrowRight size={16} /></>}</button>}</div>
+    <div className="flex items-center justify-between border-t border-line px-6 py-5 sm:px-8"><button type="button" className="button-secondary" onClick={() => setStep(value => Math.max(0, value - 1))} disabled={step === 0}><ArrowLeft size={16} /> Back</button>{step < steps.length - 1 ? <button type="button" className="button-primary" onClick={next}>Continue <ArrowRight size={16} /></button> : <button type="button" className="button-primary" onClick={form.handleSubmit(submit)} disabled={isSubmitting}>{isSubmitting ? <><LoaderCircle className="animate-spin" size={16} /> Building plan</> : <>Build my plan <ArrowRight size={16} /></>}</button>}</div>
   </form>;
 }
 
