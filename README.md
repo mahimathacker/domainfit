@@ -4,7 +4,7 @@
 
 > From use case to tested alignment plan.
 
-DomainFit helps developers decide whether an AI product needs a general model, domain alignment, retrieval-augmented generation, tools/MCP, or a hybrid architecture. It turns that decision into a validated architecture result, document-readiness assessment, editable benchmark plan, implementation sequence, and base-versus-aligned comparison.
+DomainFit helps developers decide whether an AI product needs a general model, domain alignment, retrieval-augmented generation, tools/MCP, or a hybrid architecture. The Nugen-aligned model makes that domain-specific decision. DomainFit then combines the decision with the developer’s inputs to build a deterministic document-readiness assessment, editable benchmark plan, and implementation sequence.
 
 ## Why it exists
 
@@ -38,8 +38,9 @@ flowchart LR
   U[Next.js planner] --> R[Server-only API routes]
   R --> M
   R --> G[Nugen base model]
-  R --> V[JSON extraction + Zod validation]
-  V --> O[Architecture plan]
+  R --> V[Validate architecture label]
+  V --> DPF[DomainFit planning rules]
+  DPF --> O[Architecture plan]
 ```
 
 The public web application never exposes alignment or deployment operations. See [architecture details](docs/architecture.md).
