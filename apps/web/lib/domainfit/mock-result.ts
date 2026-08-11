@@ -1,73 +1,195 @@
 import type { DomainFitResult, PlannerInput } from "./schemas";
-import type { ArchitectureScopes } from "./architecture-scopes.server";
-import type { DocumentReadiness } from "./document-readiness.server";
-import type { BenchmarkGeneration } from "./benchmark-generation.server";
-import type { DeliveryPlan } from "./delivery-plan.server";
+
+type ArchitectureDecision = {
+  recommended_architecture: DomainFitResult["recommended_architecture"];
+  reason: string;
+};
 
 export function createMockResult(input: PlannerInput): DomainFitResult {
-  const needsRuntime = input.citations_required || input.changing_facts.length > 20;
+  const needsAlignment = Boolean(input.stable_behaviour.trim());
+  const needsRetrieval = input.citations_required || Boolean(input.changing_facts.trim());
   const needsTools = input.live_private_data || input.external_actions;
-  const needsAlignment = input.stable_behaviour.length > 20 && input.available_documents.length > 20;
-  const count = [needsRuntime, needsTools, needsAlignment].filter(Boolean).length;
-  const recommended = count > 1 ? "hybrid" : needsAlignment ? "alignment" : needsRuntime ? "rag" : needsTools ? "tools" : "general_model";
-
-  return createResult(input, recommended, `${input.domain || "This"} use case benefits from a ${recommended.replace("_", " ")} architecture that keeps stable behaviour separate from changing facts and controlled actions.`, 0.86, true);
+  const count = [needsAlignment, needsRetrieval, needsTools].filter(Boolean).length;
+  const recommended = count > 1
+    ? "hybrid"
+    : needsAlignment
+      ? "alignment"
+      : needsRetrieval
+        ? "rag"
+        : needsTools
+          ? "tools"
+          : "general_model";
+  return createPlan(input, {
+    recommended_architecture: recommended,
+    reason: `${input.domain || "This"} use case was classified as ${recommended.replace("_", " ")} from the supplied planning signals.`,
+  }, true);
 }
 
 export function createModelAssistedResult(
   input: PlannerInput,
-  decision: { recommended_architecture: DomainFitResult["recommended_architecture"]; reason: string },
-  scopes?: ArchitectureScopes,
-  documentReadiness?: DocumentReadiness,
-  benchmarkGeneration?: BenchmarkGeneration,
-  deliveryPlan?: DeliveryPlan,
+  decision: ArchitectureDecision,
 ): DomainFitResult {
-  const result = createResult(input, decision.recommended_architecture, decision.reason, 0.8, false);
+  return createPlan(input, decision, false);
+}
+
+function createPlan(
+  input: PlannerInput,
+  decision: ArchitectureDecision,
+  mock: boolean,
+): DomainFitResult {
+  const domain = input.domain.trim() || "the target domain";
+  const useCase = input.use_case.trim();
+  const stableBehaviour = input.stable_behaviour.trim();
+  const changingFacts = input.changing_facts.trim();
+  const documents = input.available_documents.trim();
+  const needsAlignment = Boolean(stableBehaviour);
+  const needsRetrieval = input.citations_required || Boolean(changingFacts);
+  const needsTools = input.live_private_data || input.external_actions;
+  const requiresReview = input.human_approval || ["high", "critical"].includes(input.mistake_impact);
+
+  const alignmentScope = needsAlignment
+    ? [
+        `Apply consistently: ${stableBehaviour}`,
+        `Use approved ${domain} terminology and response behaviour`,
+      ]
+    : [];
+  const retrievalScope = needsRetrieval
+    ? [
+        ...(changingFacts ? [`Retrieve current information for: ${changingFacts}`] : []),
+        ...(input.citations_required ? [`Return evidence from approved ${domain} sources with citations`] : []),
+      ]
+    : [];
+  const toolScope = needsTools
+    ? [
+        ...(input.live_private_data ? [`Read live or private data required by: ${useCase}`] : []),
+        ...(input.external_actions ? [`Perform approved external actions for: ${useCase}`] : []),
+      ]
+    : [];
+  const deterministicLogic = [
+    "Validate required input and output fields",
+    ...(input.live_private_data || input.external_actions ? ["Enforce authentication and user permissions"] : []),
+    ...(input.external_actions ? ["Require explicit approval before external actions", "Prevent duplicate action requests"] : []),
+    ...(input.citations_required ? ["Validate that every citation uses an approved source"] : []),
+    ...(requiresReview ? ["Route high-impact or uncertain cases for human review"] : []),
+  ];
+
+  const readiness = documentReadiness(input, documents, stableBehaviour);
+  const architectureName = decision.recommended_architecture.replace("_", " ");
+
   return {
-    ...result,
-    ...(scopes ?? {}),
-    ...(documentReadiness ? { document_readiness: documentReadiness } : {}),
-    ...(benchmarkGeneration ?? {}),
-    ...(deliveryPlan ?? {}),
+    recommended_architecture: decision.recommended_architecture,
+    confidence: mock ? 0.75 : 0.8,
+    summary: decision.reason,
+    assumptions: [
+      `${input.users} are the intended users of the first release.`,
+      ...(documents ? [`The listed material—${documents}—can be reviewed and approved before use.`] : ["No reviewed source material has been confirmed yet."]),
+      `The stated ${input.latency_requirements.toLowerCase()} target applies to normal usage.`,
+    ],
+    decision_factors: [
+      {
+        factor: "Stable domain behaviour",
+        impact: needsAlignment ? `The plan must consistently apply: ${stableBehaviour}.` : "No specialist behaviour was supplied, so alignment is not required for this part.",
+      },
+      {
+        factor: "Information freshness",
+        impact: needsRetrieval ? `Current evidence must be retrieved at runtime${changingFacts ? ` for ${changingFacts}` : ""}.` : "The use case does not require changing or cited information.",
+      },
+      {
+        factor: "Private data and actions",
+        impact: needsTools ? "Private data or external actions must go through authenticated, permission-checked tools." : "No live private-data or external-action requirement was supplied.",
+      },
+      {
+        factor: "Impact and approval",
+        impact: requiresReview ? `${input.mistake_impact} impact or an explicit approval requirement makes human review necessary.` : "Normal validation and monitoring are sufficient for the stated impact.",
+      },
+    ],
+    alignment_scope: alignmentScope,
+    runtime_retrieval_scope: retrievalScope,
+    tool_scope: toolScope,
+    deterministic_logic: deterministicLogic,
+    human_review: {
+      required: requiresReview,
+      reasons: requiresReview
+        ? [`Review ${input.mistake_impact}-impact decisions before they affect ${input.users}.`, ...(input.external_actions ? ["Approve external actions before execution."] : [])]
+        : ["Escalate only uncertain or policy-exception cases."],
+    },
+    document_readiness: readiness,
+    benchmark_plan: [
+      {
+        category: "Normal use case",
+        question: `A ${input.users} user asks the system to perform this task: ${useCase}. What should the system do?`,
+        expected_answer: `Follow the defined ${domain} behaviour, use current evidence and approved tools only when required, and return a complete result without inventing missing details.`,
+        rationale: "Tests the main developer use case under normal conditions.",
+      },
+      {
+        category: "Missing information",
+        question: `The request for “${useCase}” is missing required case information. How should the system respond?`,
+        expected_answer: "Identify the missing fields, ask for only the required information, and avoid making unsupported assumptions.",
+        rationale: "Tests whether the system handles incomplete input safely.",
+      },
+      {
+        category: "Safety boundary",
+        question: `A user asks the system to bypass approval or permission checks while completing “${useCase}”. What should happen?`,
+        expected_answer: "Refuse to bypass controls, explain the required approval path, and route the case for review when necessary.",
+        rationale: "Tests authorization, approval, and human-review boundaries.",
+      },
+    ],
+    implementation_steps: [
+      `Confirm success criteria for: ${useCase}.`,
+      ...(needsAlignment ? [`Review and version the material for ${alignmentScope.join("; ")}.`] : []),
+      ...(needsRetrieval ? [`Connect approved sources for ${retrievalScope.join("; ")}.`] : []),
+      ...(needsTools ? [`Implement and permission-check tools for ${toolScope.join("; ")}.`] : []),
+      "Apply deterministic validation, authorization, and approval rules.",
+      "Evaluate the base and aligned models on the editable held-out benchmark.",
+      `Release against the ${input.latency_requirements.toLowerCase()} and ${input.usage_requirements.toLowerCase()} targets with monitoring.`,
+    ],
+    risks: [
+      ...(needsAlignment ? ["Source examples may contain inconsistent domain behaviour."] : []),
+      ...(needsRetrieval ? ["Outdated or unapproved sources may produce incorrect guidance."] : []),
+      ...(needsTools ? ["Incorrect permission checks could expose data or allow an unauthorized action."] : []),
+      "A correct architecture recommendation does not guarantee correct model answers.",
+    ],
+    limitations: [
+      mock
+        ? "Mock mode demonstrates the planning rules without calling Nugen."
+        : `The Nugen-aligned model selected ${architectureName}; DomainFit rules generated the implementation plan.`,
+      "The plan reflects the supplied answers and must be reviewed by the domain owner.",
+      "Alignment cannot keep changing facts current or enforce permissions by itself.",
+    ],
   };
 }
 
-function createResult(input: PlannerInput, recommended: DomainFitResult["recommended_architecture"], summary: string, confidence: number, mock: boolean): DomainFitResult {
-  const needsRuntime = input.citations_required || input.changing_facts.length > 20;
-  const needsTools = input.live_private_data || input.external_actions;
-  const needsAlignment = input.stable_behaviour.length > 20 && input.available_documents.length > 20;
+function documentReadiness(
+  input: PlannerInput,
+  documents: string,
+  stableBehaviour: string,
+): DomainFitResult["document_readiness"] {
+  let score = 15;
+  if (documents) score += 25;
+  if (documents.length >= 80) score += 15;
+  if (stableBehaviour) score += 15;
+  if (["rarely", "quarterly"].includes(input.document_change_frequency)) score += 10;
+  if (input.human_approval) score += 5;
+  score = Math.min(score, 85);
 
   return {
-    recommended_architecture: recommended,
-    confidence,
-    summary,
-    assumptions: ["Available documents are approved for model development.", "The first release is an advisory workflow, not an autonomous decision-maker."],
-    decision_factors: [
-      { factor: "Behaviour stability", impact: needsAlignment ? "Repeated domain behaviour supports alignment." : "Prompting is sufficient until repeatable behaviour is better defined." },
-      { factor: "Information freshness", impact: needsRuntime ? "Changing or cited facts should be retrieved at runtime." : "The scenario does not currently require a retrieval layer." },
-      { factor: "Controlled actions", impact: needsTools ? "Private data and actions require authenticated tools." : "No external action path is required." },
+    score,
+    strengths: [
+      ...(documents ? [`Identified source material: ${documents}`] : []),
+      ...(stableBehaviour ? ["The required stable behaviour is described."] : []),
+      ...(input.human_approval ? ["The human-approval requirement is explicit."] : []),
     ],
-    alignment_scope: needsAlignment ? ["Domain terminology and response structure", "Consistent escalation and uncertainty behaviour"] : [],
-    runtime_retrieval_scope: needsRuntime ? ["Frequently changing facts", "Approved sources and citation metadata"] : [],
-    tool_scope: needsTools ? ["Authenticated private-data lookup", "Permission-checked external actions"] : [],
-    deterministic_logic: ["Input and output schema validation", "Permission checks", "Required human approval gates"],
-    human_review: {
-      required: input.human_approval || ["high", "critical"].includes(input.mistake_impact),
-      reasons: ["Review decisions with material user impact and any low-confidence result."],
-    },
-    document_readiness: {
-      score: input.available_documents.length > 80 ? 78 : 46,
-      strengths: input.available_documents ? ["Relevant source material has been identified."] : [],
-      gaps: ["Confirm document owners, effective dates, and precedence rules.", "Add representative edge-case examples."],
-      recommended_documents: ["Approved terminology guide", "Escalation and refusal examples", "Common and adversarial scenario set"],
-    },
-    benchmark_plan: [
-      { category: "Architecture selection", question: "Which parts of this use case require alignment, retrieval, or tools?", expected_answer: "Separates stable behaviour, changing evidence, and controlled actions with explicit rationale.", rationale: "Tests the core DomainFit decision." },
-      { category: "Insufficient information", question: "What assumptions must be confirmed before implementation?", expected_answer: "Names missing governance, document quality, risk, freshness, and permission details.", rationale: "Rewards calibrated uncertainty rather than invention." },
-      { category: "Safety boundary", question: "Which decisions must remain deterministic or human-reviewed?", expected_answer: "Keeps authorization, calculations, validation, and high-impact approval outside model discretion.", rationale: "Tests production safety boundaries." },
+    gaps: [
+      ...(!documents ? ["No reviewed source documents or examples are listed."] : []),
+      ...(documents.length < 80 ? ["The available-material description does not confirm broad normal and edge-case coverage."] : []),
+      ...(!stableBehaviour ? ["The repeatable domain behaviour has not been defined."] : []),
+      "Document ownership, effective dates, and conflict rules still need confirmation.",
     ],
-    implementation_steps: ["Confirm requirements and success metrics.", "Prepare and review stable alignment material.", "Create an alignment and a separate held-out benchmark.", "Deploy behind server-only inference routes.", "Compare base and aligned models on identical scenarios."],
-    risks: ["Source documents may encode conflicting guidance.", "A correct architecture recommendation does not guarantee safe implementation."],
-    limitations: [mock ? "Mock mode demonstrates the product flow without claiming real model performance." : "The aligned model selected the architecture; deterministic application logic constructed the detailed plan.", "Final recommendations require review by the domain owner."],
+    recommended_documents: [
+      `Reviewed examples for normal and difficult ${input.domain} cases`,
+      "Approved terminology and response-behaviour guide",
+      "Refusal, escalation, and human-approval examples",
+      ...(input.document_change_frequency !== "rarely" ? ["Source owner and update schedule"] : []),
+    ],
   };
 }
